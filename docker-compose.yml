@@ -13,6 +13,14 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+  db_test:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: test_db
+    ports:
+      - "5433:5432" 
 
   web:
     build: .
@@ -24,6 +32,19 @@ services:
       - "8000:8000"
     depends_on:
       - db
+  
+  test:
+    build: .
+    depends_on:
+      - db_test
+    environment:
+      DATABASE_URL: postgresql://user:password@db_test:5432/test_db
+      TESTING: "true"
+    volumes:
+      - .:/app
+    command: pytest -v
+    profiles:
+      - test  # Só roda quando especificado
 
 volumes:
   postgres_data:
