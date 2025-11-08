@@ -6,7 +6,13 @@ from app.routes import (users,
                         materiais,
                         centros_trabalho,
                         maquinas,
-                        operacoes
+                        operacoes,
+                        ordens_producao,
+                        produtos,
+                        produto_material,
+                        ordem_material,
+                        subproduto,
+                        pedidos_venda
                         )
 
 
@@ -21,6 +27,12 @@ app.include_router(materiais.router)
 app.include_router(centros_trabalho.router)
 app.include_router(maquinas.router)
 app.include_router(operacoes.router)
+app.include_router(ordens_producao.router)
+app.include_router(produtos.router)
+app.include_router(produto_material.router)
+app.include_router(ordem_material.router)
+app.include_router(subproduto.router)
+app.include_router(pedidos_venda.router)
 
 @app.get("/")
 def root():
