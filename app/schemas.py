@@ -26,6 +26,10 @@ class LoginRequest(BaseModel):
     email: EmailStr
     senha: str
 
+class UpdatePasswordRequest(BaseModel):
+    senha_atual: str
+    nova_senha: str
+    repetir_nova_senha: str
 
 class Token(BaseModel):
     access_token: str
@@ -317,6 +321,60 @@ class PedidoVendaResponse(PedidoVendaBase):
     id: int
     data_pedido: datetime
     itens: List[PedidoVendaItemResponse] = []
+
+    class Config:
+        orm_mode = True
+
+# ========================
+# OPERAÇÃO DO ROTEIRO
+# ========================
+
+class RoteiroOperacaoBase(BaseModel):
+    operacao_id: int
+    centro_trabalho_id: int
+    maquina_id: Optional[int] = None
+    sequencia: int
+    tempo_padrao_min: Optional[int] = None
+    observacoes: Optional[str] = None
+
+
+class RoteiroOperacaoCreate(RoteiroOperacaoBase):
+    pass
+
+
+class RoteiroOperacaoResponse(RoteiroOperacaoBase):
+    id: int
+    criado_em: datetime
+
+    class Config:
+        orm_mode = True
+
+# ========================
+# ROTEIRO DE PRODUÇÃO
+# ========================
+
+class RoteiroProducaoBase(BaseModel):
+    produto_id: int
+    codigo: Optional[str] = None
+    descricao: Optional[str] = None
+    ativo: Optional[bool] = True
+
+
+class RoteiroProducaoCreate(RoteiroProducaoBase):
+    operacoes: List[RoteiroOperacaoCreate] = []
+
+
+class RoteiroProducaoUpdate(BaseModel):
+    codigo: Optional[str] = None
+    descricao: Optional[str] = None
+    ativo: Optional[bool] = None
+    operacoes: Optional[List[RoteiroOperacaoCreate]] = None
+
+
+class RoteiroProducaoResponse(RoteiroProducaoBase):
+    id: int
+    criado_em: datetime
+    operacoes: List[RoteiroOperacaoResponse] = []
 
     class Config:
         orm_mode = True
