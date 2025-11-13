@@ -146,24 +146,18 @@ class MaquinaResponse(MaquinaBase):
 class OperacaoBase(BaseModel):
     nome: str
     descricao: Optional[str] = None
-    centros_trabalho_ids: List[int]  # IDs dos centros de trabalho associados
-
 
 class OperacaoCreate(OperacaoBase):
     pass
 
-
 class OperacaoUpdate(BaseModel):
     nome: Optional[str] = None
     descricao: Optional[str] = None
-    centros_trabalho_ids: Optional[List[int]] = None
-
 
 class OperacaoResponse(BaseModel):
     id: int
     nome: str
     descricao: Optional[str]
-    centros_trabalho: List[CentroTrabalhoResponse]  # retorna os centros vinculados
 
     class Config:
         orm_mode = True

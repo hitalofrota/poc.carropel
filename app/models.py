@@ -22,13 +22,6 @@ class UnidadeMedida(Base):
 
     materiais = relationship("Material", back_populates="unidade_medida")
 
-operacao_centro_trabalho = Table(
-    "operacao_centro_trabalho",
-    Base.metadata,
-    Column("operacao_id", Integer, ForeignKey("operacoes.id", ondelete="CASCADE")),
-    Column("centro_trabalho_id", Integer, ForeignKey("centros_trabalho.id", ondelete="CASCADE"))
-)
-
 class CentroTrabalho(Base):
     __tablename__ = "centros_trabalho"
 
@@ -36,14 +29,12 @@ class CentroTrabalho(Base):
     nome = Column(String(100), nullable=False, unique=True)
     descricao = Column(String(255), nullable=True)
 
-    # relacionamento com máquinas
-    maquinas = relationship("Maquina", back_populates="centro_trabalho")
-    operacoes = relationship(
-        "Operacao",
-        secondary=operacao_centro_trabalho,
-        back_populates="centros_trabalho"
+    # Relacionamento com máquinas (1:N)
+    maquinas = relationship(
+        "Maquina",
+        back_populates="centro_trabalho",
+        cascade="all, delete-orphan"
     )
-
 
 class Maquina(Base):
     __tablename__ = "maquinas"
@@ -52,9 +43,14 @@ class Maquina(Base):
     nome = Column(String(100), nullable=False)
     codigo = Column(String(50), nullable=False, unique=True)
     descricao = Column(String(255), nullable=True)
-    centro_trabalho_id = Column(Integer, ForeignKey("centros_trabalho.id"), nullable=False)
 
-    # relacionamento com centro de trabalho
+    centro_trabalho_id = Column(
+        Integer, 
+        ForeignKey("centros_trabalho.id"), 
+        nullable=False
+    )
+
+    # Relacionamento com centro de trabalho (N:1)
     centro_trabalho = relationship("CentroTrabalho", back_populates="maquinas")
 
 class Operacao(Base):
@@ -63,12 +59,6 @@ class Operacao(Base):
     id = Column(Integer, primary_key=True, index=True)
     nome = Column(String(100), nullable=False, unique=True)
     descricao = Column(Text, nullable=True)
-
-    centros_trabalho = relationship(
-        "CentroTrabalho",
-        secondary=operacao_centro_trabalho,
-        back_populates="operacoes"
-    )
 
 # --- ENUMs ---
 class OrdemStatus(enum.Enum):
