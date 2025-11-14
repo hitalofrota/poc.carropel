@@ -27,7 +27,7 @@ def create_order(order: schemas.ProductionOrderCreate, db: Session = Depends(get
         planned_quantity=order.planned_quantity,
         status=order.status,
         notes=order.notes,
-        creation_date=datetime.utcnow()
+        created_at=datetime.utcnow()
     )
 
     db.add(new_order)

@@ -22,7 +22,7 @@ def create_sales_order(order_data: schemas.SalesOrderCreate, db: Session = Depen
 
     for item in order_data.items:
         new_item = models.SalesOrderItem(
-            order_id=order.id,
+            sales_order_id=order.id,
             product_id=item.product_id,
             quantity=item.quantity
         )
@@ -34,7 +34,7 @@ def create_sales_order(order_data: schemas.SalesOrderCreate, db: Session = Depen
             code=order_code,
             product_id=item.product_id,
             planned_quantity=item.quantity,
-            order_id=order.id,
+            sales_order_id=order.id,
         )
         db.add(production_order)
 

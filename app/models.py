@@ -289,7 +289,7 @@ class SalesOrder(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     order_number = Column(String(100), unique=True, nullable=False)
-    client = Column(String(200), nullable=False)
+    customer = Column(String(200), nullable=False)
     order_date = Column(DateTime, default=datetime.utcnow)
     notes = Column(Text, nullable=True)
     status = Column(Enum(SalesOrderStatus), default=SalesOrderStatus.planned)
@@ -298,7 +298,7 @@ class SalesOrder(Base):
     production_orders = relationship("ProductionOrder", back_populates="sales_order")
 
     def __repr__(self):
-        return f"<SalesOrder(order_number={self.order_number}, client={self.client})>"
+        return f"<SalesOrder(order_number={self.order_number}, customer={self.customer})>"
 
 # --- SALES ORDER ITEM ---
 class SalesOrderItem(Base):
