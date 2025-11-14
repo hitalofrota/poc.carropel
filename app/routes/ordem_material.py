@@ -5,52 +5,52 @@ from app.database import get_db
 from app.auth import get_current_user
 
 router = APIRouter(
-    prefix="/ordens",
-    tags=["Ordem-Material"],
+    prefix="/orders",
+    tags=["Order-Material"],
     dependencies=[Depends(get_current_user)]
 )
 
 
-@router.post("/{ordem_id}/materiais", response_model=schemas.OrdemProducaoResponse)
-def adicionar_material_a_ordem(
-    ordem_id: int,
-    material_data: schemas.MaterialOrdemCreate,
+@router.post("/{order_id}/materials", response_model=schemas.ProductionOrderResponse)
+def add_material_to_order(
+    order_id: int,
+    material_data: schemas.OrderMaterialCreate,
     db: Session = Depends(get_db)
 ):
-    ordem = db.query(models.OrdemProducao).filter(models.OrdemProducao.id == ordem_id).first()
-    if not ordem:
-        raise HTTPException(status_code=404, detail="Ordem de produção não encontrada")
+    order = db.query(models.ProductionOrder).filter(models.ProductionOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Production order not found")
 
     material = db.query(models.Material).filter(models.Material.id == material_data.material_id).first()
     if not material:
-        raise HTTPException(status_code=404, detail="Material não encontrado")
+        raise HTTPException(status_code=404, detail="Material not found")
 
-    # Verifica se já existe esse vínculo
-    existente = (
-        db.query(models.MaterialOrdem)
-        .filter_by(ordem_id=ordem_id, material_id=material_data.material_id)
+    # Check if this link already exists
+    existing = (
+        db.query(models.MaterialOrder)
+        .filter_by(order_id=order_id, material_id=material_data.material_id)
         .first()
     )
-    if existente:
-        raise HTTPException(status_code=400, detail="Material já vinculado a esta ordem")
+    if existing:
+        raise HTTPException(status_code=400, detail="Material already linked to this order")
 
-    novo_vinculo = models.MaterialOrdem(
-        ordem_id=ordem_id,
+    new_link = models.MaterialOrder(
+        order_id=order_id,
         material_id=material_data.material_id,
-        quantidade_usada=material_data.quantidade_usada
+        quantity_used=material_data.quantity_used
     )
 
-    db.add(novo_vinculo)
+    db.add(new_link)
     db.commit()
-    db.refresh(ordem)
-    return ordem
+    db.refresh(order)
+    return order
 
 
-# 🔍 Listar materiais de uma ordem
-@router.get("/{ordem_id}/materiais", response_model=list[schemas.MaterialResponse])
-def listar_materiais_da_ordem(ordem_id: int, db: Session = Depends(get_db)):
-    ordem = db.query(models.OrdemProducao).filter(models.OrdemProducao.id == ordem_id).first()
-    if not ordem:
-        raise HTTPException(status_code=404, detail="Ordem de produção não encontrada")
+# 🔍 List all materials of an order
+@router.get("/{order_id}/materials", response_model=list[schemas.MaterialResponse])
+def list_order_materials(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(models.ProductionOrder).filter(models.ProductionOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Production order not found")
 
-    return [mo.material for mo in ordem.materiais_usados]
+    return [om.material for om in order.used_materials]

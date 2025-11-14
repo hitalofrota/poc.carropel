@@ -5,64 +5,64 @@ from app.database import get_db
 from app.auth import get_current_user
 
 router = APIRouter(
-    prefix="/produtos",
-    tags=["Produto-Material"],
+    prefix="/products",
+    tags=["Product-Material"],
     dependencies=[Depends(get_current_user)]
 )
 
-# ➕ Adicionar material a um produto
-@router.post("/{produto_id}/materiais", response_model=schemas.ProdutoMaterialResponse)
-def adicionar_material_ao_produto(
-    produto_id: int,
-    material_data: schemas.ProdutoMaterialCreate,
+# ➕ Add material to a product
+@router.post("/{product_id}/materials", response_model=schemas.ProductMaterialResponse)
+def add_material_to_product(
+    product_id: int,
+    material_data: schemas.ProductMaterialCreate,
     db: Session = Depends(get_db)
 ):
-    produto = db.query(models.Produto).filter(models.Produto.id == produto_id).first()
-    if not produto:
-        raise HTTPException(status_code=404, detail="Produto não encontrado")
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
 
     material = db.query(models.Material).filter(models.Material.id == material_data.material_id).first()
     if not material:
-        raise HTTPException(status_code=404, detail="Material não encontrado")
+        raise HTTPException(status_code=404, detail="Material not found")
 
-    # Verifica duplicidade
-    existente = (
-        db.query(models.ProdutoMaterial)
-        .filter_by(produto_id=produto_id, material_id=material_data.material_id)
+    # Check for duplicates
+    existing = (
+        db.query(models.ProductMaterial)
+        .filter_by(product_id=product_id, material_id=material_data.material_id)
         .first()
     )
-    if existente:
-        raise HTTPException(status_code=400, detail="Material já vinculado a este produto")
+    if existing:
+        raise HTTPException(status_code=400, detail="Material already linked to this product")
 
-    novo_vinculo = models.ProdutoMaterial(
-        produto_id=produto_id,
+    new_link = models.ProductMaterial(
+        product_id=product_id,
         material_id=material_data.material_id,
-        quantidade=material_data.quantidade
+        quantity=material_data.quantity
     )
 
-    db.add(novo_vinculo)
+    db.add(new_link)
     db.commit()
-    db.refresh(novo_vinculo)
+    db.refresh(new_link)
 
-    # 🔹 Retorno estruturado conforme o teste espera
+    # 🔹 Structured return as expected by the test
     return {
-        "id": novo_vinculo.id,
-        "produto_id": produto_id,
+        "id": new_link.id,
+        "product_id": product_id,
         "material_id": material.id,
-        "quantidade": novo_vinculo.quantidade,
+        "quantity": new_link.quantity,
         "material": {
             "id": material.id,
-            "nome": material.nome,
-            "codigo": material.codigo
+            "name": material.name,
+            "code": material.code
         }
     }
 
 
-# 🔍 Listar materiais de um produto
-@router.get("/{produto_id}/materiais", response_model=list[schemas.ProdutoMaterialResponse])
-def listar_materiais_do_produto(produto_id: int, db: Session = Depends(get_db)):
-    produto = db.query(models.Produto).filter(models.Produto.id == produto_id).first()
-    if not produto:
-        raise HTTPException(status_code=404, detail="Produto não encontrado")
+# 🔍 List materials of a product
+@router.get("/{product_id}/materials", response_model=list[schemas.ProductMaterialResponse])
+def list_product_materials(product_id: int, db: Session = Depends(get_db)):
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
 
-    return produto.materiais
+    return product.materials

@@ -5,59 +5,57 @@ from app.database import get_db
 from app.auth import get_current_user
 
 router = APIRouter(
-    prefix="/unidades_medida",
-    tags=["Unidades de Medida"],
+    prefix="/units_of_measure",
+    tags=["Units of Measure"],
     dependencies=[Depends(get_current_user)]
 )
 
-@router.post("/", response_model=schemas.UnidadeMedidaResponse)
-def criar_unidade(unidade: schemas.UnidadeMedidaCreate, db: Session = Depends(get_db)):
-    unidade_existente = db.query(models.UnidadeMedida).filter(
-        (models.UnidadeMedida.nome == unidade.nome) |
-        (models.UnidadeMedida.sigla == unidade.sigla)
+@router.post("/", response_model=schemas.UnitOfMeasureResponse)
+def create_unit(unit: schemas.UnitOfMeasureCreate, db: Session = Depends(get_db)):
+    existing_unit = db.query(models.UnitOfMeasure).filter(
+        (models.UnitOfMeasure.name == unit.name) |
+        (models.UnitOfMeasure.abbreviation == unit.abbreviation)
     ).first()
 
-    if unidade_existente:
-        raise HTTPException(status_code=400, detail="Unidade de medida já cadastrada")
+    if existing_unit:
+        raise HTTPException(status_code=400, detail="Unit of measure already registered")
 
-    nova_unidade = models.UnidadeMedida(**unidade.dict())
-    db.add(nova_unidade)
+    new_unit = models.UnitOfMeasure(**unit.dict())
+    db.add(new_unit)
     db.commit()
-    db.refresh(nova_unidade)
-    return nova_unidade
+    db.refresh(new_unit)
+    return new_unit
 
-@router.get("/", response_model=list[schemas.UnidadeMedidaResponse])
-def listar_unidades(db: Session = Depends(get_db)):
-    return db.query(models.UnidadeMedida).all()
+@router.get("/", response_model=list[schemas.UnitOfMeasureResponse])
+def list_units(db: Session = Depends(get_db)):
+    return db.query(models.UnitOfMeasure).all()
 
-@router.get("/{unidade_id}", response_model=schemas.UnidadeMedidaResponse)
-def obter_unidade(unidade_id: int, db: Session = Depends(get_db)):
-    unidade = db.query(models.UnidadeMedida).filter(models.UnidadeMedida.id == unidade_id).first()
-    if not unidade:
-        raise HTTPException(status_code=404, detail="Unidade de medida não encontrada")
-    return unidade
+@router.get("/{unit_id}", response_model=schemas.UnitOfMeasureResponse)
+def get_unit(unit_id: int, db: Session = Depends(get_db)):
+    unit = db.query(models.UnitOfMeasure).filter(models.UnitOfMeasure.id == unit_id).first()
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit of measure not found")
+    return unit
 
-@router.put("/{unidade_id}", response_model=schemas.UnidadeMedidaResponse)
-def atualizar_unidade(unidade_id: int, unidade_update: schemas.UnidadeMedidaCreate, db: Session = Depends(get_db)):
-    unidade = db.query(models.UnidadeMedida).filter(models.UnidadeMedida.id == unidade_id).first()
-    if not unidade:
-        raise HTTPException(status_code=404, detail="Unidade de medida não encontrada")
+@router.put("/{unit_id}", response_model=schemas.UnitOfMeasureResponse)
+def update_unit(unit_id: int, unit_update: schemas.UnitOfMeasureCreate, db: Session = Depends(get_db)):
+    unit = db.query(models.UnitOfMeasure).filter(models.UnitOfMeasure.id == unit_id).first()
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit of measure not found")
 
-    for key, value in unidade_update.dict().items():
-        setattr(unidade, key, value)
+    for key, value in unit_update.dict().items():
+        setattr(unit, key, value)
 
     db.commit()
-    db.refresh(unidade)
-    return unidade
+    db.refresh(unit)
+    return unit
 
-@router.delete("/{unidade_id}")
-def deletar_unidade(unidade_id: int, db: Session = Depends(get_db)):
-    unidade = db.query(models.UnidadeMedida).filter(models.UnidadeMedida.id == unidade_id).first()
-    if not unidade:
-        raise HTTPException(status_code=404, detail="Unidade de medida não encontrada")
+@router.delete("/{unit_id}")
+def delete_unit(unit_id: int, db: Session = Depends(get_db)):
+    unit = db.query(models.UnitOfMeasure).filter(models.UnitOfMeasure.id == unit_id).first()
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit of measure not found")
 
-    db.delete(unidade)
+    db.delete(unit)
     db.commit()
-    return {"detail": "Unidade de medida deletada com sucesso"}
-
-
+    return {"detail": "Unit of measure successfully deleted"}

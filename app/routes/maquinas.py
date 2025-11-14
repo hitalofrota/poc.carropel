@@ -5,62 +5,62 @@ from app.database import get_db
 from app.auth import get_current_user
 
 router = APIRouter(
-    prefix="/maquinas",
-    tags=["Máquinas"],
+    prefix="/machines",
+    tags=["Machines"],
     dependencies=[Depends(get_current_user)]
 )
 
 
-@router.post("/", response_model=schemas.MaquinaResponse)
-def criar_maquina(maquina: schemas.MaquinaCreate, db: Session = Depends(get_db)):
-    centro = db.query(models.CentroTrabalho).filter(models.CentroTrabalho.id == maquina.centro_trabalho_id).first()
-    if not centro:
-        raise HTTPException(status_code=400, detail="Centro de trabalho não encontrado")
+@router.post("/", response_model=schemas.MachineResponse)
+def create_machine(machine: schemas.MachineCreate, db: Session = Depends(get_db)):
+    work_center = db.query(models.WorkCenter).filter(models.WorkCenter.id == machine.work_center_id).first()
+    if not work_center:
+        raise HTTPException(status_code=400, detail="Work center not found")
 
-    codigo_existente = db.query(models.Maquina).filter(models.Maquina.codigo == maquina.codigo).first()
-    if codigo_existente:
-        raise HTTPException(status_code=400, detail="Código de máquina já cadastrado")
+    existing_code = db.query(models.Machine).filter(models.Machine.code == machine.code).first()
+    if existing_code:
+        raise HTTPException(status_code=400, detail="Machine code already registered")
 
-    nova_maquina = models.Maquina(**maquina.dict())
-    db.add(nova_maquina)
+    new_machine = models.Machine(**machine.dict())
+    db.add(new_machine)
     db.commit()
-    db.refresh(nova_maquina)
-    return nova_maquina
+    db.refresh(new_machine)
+    return new_machine
 
 
-@router.get("/", response_model=list[schemas.MaquinaResponse])
-def listar_maquinas(db: Session = Depends(get_db)):
-    return db.query(models.Maquina).all()
+@router.get("/", response_model=list[schemas.MachineResponse])
+def list_machines(db: Session = Depends(get_db)):
+    return db.query(models.Machine).all()
 
 
-@router.get("/{maquina_id}", response_model=schemas.MaquinaResponse)
-def obter_maquina(maquina_id: int, db: Session = Depends(get_db)):
-    maquina = db.query(models.Maquina).filter(models.Maquina.id == maquina_id).first()
-    if not maquina:
-        raise HTTPException(status_code=404, detail="Máquina não encontrada")
-    return maquina
+@router.get("/{machine_id}", response_model=schemas.MachineResponse)
+def get_machine(machine_id: int, db: Session = Depends(get_db)):
+    machine = db.query(models.Machine).filter(models.Machine.id == machine_id).first()
+    if not machine:
+        raise HTTPException(status_code=404, detail="Machine not found")
+    return machine
 
 
-@router.put("/{maquina_id}", response_model=schemas.MaquinaResponse)
-def atualizar_maquina(maquina_id: int, maquina_update: schemas.MaquinaUpdate, db: Session = Depends(get_db)):
-    maquina = db.query(models.Maquina).filter(models.Maquina.id == maquina_id).first()
-    if not maquina:
-        raise HTTPException(status_code=404, detail="Máquina não encontrada")
+@router.put("/{machine_id}", response_model=schemas.MachineResponse)
+def update_machine(machine_id: int, machine_update: schemas.MachineUpdate, db: Session = Depends(get_db)):
+    machine = db.query(models.Machine).filter(models.Machine.id == machine_id).first()
+    if not machine:
+        raise HTTPException(status_code=404, detail="Machine not found")
 
-    for key, value in maquina_update.dict(exclude_unset=True).items():
-        setattr(maquina, key, value)
+    for key, value in machine_update.dict(exclude_unset=True).items():
+        setattr(machine, key, value)
 
     db.commit()
-    db.refresh(maquina)
-    return maquina
+    db.refresh(machine)
+    return machine
 
 
-@router.delete("/{maquina_id}")
-def deletar_maquina(maquina_id: int, db: Session = Depends(get_db)):
-    maquina = db.query(models.Maquina).filter(models.Maquina.id == maquina_id).first()
-    if not maquina:
-        raise HTTPException(status_code=404, detail="Máquina não encontrada")
+@router.delete("/{machine_id}")
+def delete_machine(machine_id: int, db: Session = Depends(get_db)):
+    machine = db.query(models.Machine).filter(models.Machine.id == machine_id).first()
+    if not machine:
+        raise HTTPException(status_code=404, detail="Machine not found")
 
-    db.delete(maquina)
+    db.delete(machine)
     db.commit()
-    return {"detail": "Máquina deletada com sucesso"}
+    return {"detail": "Machine successfully deleted"}

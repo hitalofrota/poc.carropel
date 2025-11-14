@@ -6,65 +6,69 @@ from app.auth import get_current_user
 from datetime import datetime
 
 router = APIRouter(
-    prefix="/ordens",
-    tags=["Ordens de Produção"],
+    prefix="/orders",
+    tags=["Production Orders"],
     dependencies=[Depends(get_current_user)]
 )
 
-@router.post("/", response_model=schemas.OrdemProducaoResponse)
-def criar_ordem(ordem: schemas.OrdemProducaoCreate, db: Session = Depends(get_db)):
-    codigo_existente = db.query(models.OrdemProducao).filter(models.OrdemProducao.codigo == ordem.codigo).first()
-    if codigo_existente:
-        raise HTTPException(status_code=400, detail="Código de ordem já existente")
+@router.post("/", response_model=schemas.ProductionOrderResponse)
+def create_order(order: schemas.ProductionOrderCreate, db: Session = Depends(get_db)):
+    existing_code = db.query(models.ProductionOrder).filter(models.ProductionOrder.code == order.code).first()
+    if existing_code:
+        raise HTTPException(status_code=400, detail="Order code already exists")
 
-    produto = db.query(models.Produto).filter(models.Produto.id == ordem.produto_id).first()
-    if not produto:
-        raise HTTPException(status_code=400, detail="Produto não encontrado")
+    product = db.query(models.Product).filter(models.Product.id == order.product_id).first()
+    if not product:
+        raise HTTPException(status_code=400, detail="Product not found")
 
-    nova_ordem = models.OrdemProducao(
-        codigo=ordem.codigo,
-        produto_id=ordem.produto_id,
-        quantidade_planejada=ordem.quantidade_planejada,
-        status=ordem.status,
-        observacoes=ordem.observacoes,
-        data_criacao=datetime.utcnow()
+    new_order = models.ProductionOrder(
+        code=order.code,
+        product_id=order.product_id,
+        planned_quantity=order.planned_quantity,
+        status=order.status,
+        notes=order.notes,
+        creation_date=datetime.utcnow()
     )
 
-    db.add(nova_ordem)
+    db.add(new_order)
     db.commit()
-    db.refresh(nova_ordem)
-    return nova_ordem
+    db.refresh(new_order)
+    return new_order
 
-@router.get("/", response_model=list[schemas.OrdemProducaoResponse])
-def listar_ordens(db: Session = Depends(get_db)):
-    return db.query(models.OrdemProducao).all()
 
-@router.get("/{ordem_id}", response_model=schemas.OrdemProducaoResponse)
-def obter_ordem(ordem_id: int, db: Session = Depends(get_db)):
-    ordem = db.query(models.OrdemProducao).filter(models.OrdemProducao.id == ordem_id).first()
-    if not ordem:
-        raise HTTPException(status_code=404, detail="Ordem de produção não encontrada")
-    return ordem
+@router.get("/", response_model=list[schemas.ProductionOrderResponse])
+def list_orders(db: Session = Depends(get_db)):
+    return db.query(models.ProductionOrder).all()
 
-@router.put("/{ordem_id}", response_model=schemas.OrdemProducaoResponse)
-def atualizar_ordem(ordem_id: int, ordem_update: schemas.OrdemProducaoUpdate, db: Session = Depends(get_db)):
-    ordem = db.query(models.OrdemProducao).filter(models.OrdemProducao.id == ordem_id).first()
-    if not ordem:
-        raise HTTPException(status_code=404, detail="Ordem de produção não encontrada")
 
-    for key, value in ordem_update.dict(exclude_unset=True).items():
-        setattr(ordem, key, value)
+@router.get("/{order_id}", response_model=schemas.ProductionOrderResponse)
+def get_order(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(models.ProductionOrder).filter(models.ProductionOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Production order not found")
+    return order
+
+
+@router.put("/{order_id}", response_model=schemas.ProductionOrderResponse)
+def update_order(order_id: int, order_update: schemas.ProductionOrderUpdate, db: Session = Depends(get_db)):
+    order = db.query(models.ProductionOrder).filter(models.ProductionOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Production order not found")
+
+    for key, value in order_update.dict(exclude_unset=True).items():
+        setattr(order, key, value)
 
     db.commit()
-    db.refresh(ordem)
-    return ordem
+    db.refresh(order)
+    return order
 
-@router.delete("/{ordem_id}")
-def deletar_ordem(ordem_id: int, db: Session = Depends(get_db)):
-    ordem = db.query(models.OrdemProducao).filter(models.OrdemProducao.id == ordem_id).first()
-    if not ordem:
-        raise HTTPException(status_code=404, detail="Ordem de produção não encontrada")
 
-    db.delete(ordem)
+@router.delete("/{order_id}")
+def delete_order(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(models.ProductionOrder).filter(models.ProductionOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Production order not found")
+
+    db.delete(order)
     db.commit()
-    return {"detail": "Ordem deletada com sucesso"}
+    return {"detail": "Order successfully deleted"}

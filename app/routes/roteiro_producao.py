@@ -5,86 +5,86 @@ from app.database import get_db
 from app.auth import get_current_user
 
 router = APIRouter(
-    prefix="/roteiros",
-    tags=["Roteiros de Produção"],
+    prefix="/production-routes",
+    tags=["Production Routes"],
     dependencies=[Depends(get_current_user)]
 )
 
 
-# --- CRIAR ROTEIRO ---
-@router.post("/", response_model=schemas.RoteiroProducaoResponse)
-def criar_roteiro(roteiro: schemas.RoteiroProducaoCreate, db: Session = Depends(get_db)):
-    produto = db.query(models.Produto).filter(models.Produto.id == roteiro.produto_id).first()
-    if not produto:
-        raise HTTPException(status_code=404, detail="Produto não encontrado")
+# --- CREATE PRODUCTION ROUTE ---
+@router.post("/", response_model=schemas.ProductionRoutingResponse)
+def create_production_route(route: schemas.ProductionRoutingCreate, db: Session = Depends(get_db)):
+    product = db.query(models.Product).filter(models.Product.id == route.product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
 
-    novo_roteiro = models.RoteiroProducao(
-        produto_id=roteiro.produto_id,
-        codigo=roteiro.codigo,
-        descricao=roteiro.descricao,
-        ativo=roteiro.ativo,
+    new_route = models.ProductionRoute(
+        product_id=route.product_id,
+        code=route.code,
+        description=route.description,
+        active=route.active,
     )
-    db.add(novo_roteiro)
+    db.add(new_route)
     db.commit()
-    db.refresh(novo_roteiro)
+    db.refresh(new_route)
 
-    # adiciona operações
-    for op in roteiro.operacoes:
-        nova_op = models.RoteiroOperacao(
-            roteiro_id=novo_roteiro.id,
+    # Add operations
+    for op in route.operations:
+        new_op = models.RouteOperation(
+            route_id=new_route.id,
             **op.dict()
         )
-        db.add(nova_op)
+        db.add(new_op)
 
     db.commit()
-    db.refresh(novo_roteiro)
-    return novo_roteiro
+    db.refresh(new_route)
+    return new_route
 
 
-# --- LISTAR TODOS OS ROTEIROS ---
-@router.get("/", response_model=list[schemas.RoteiroProducaoResponse])
-def listar_roteiros(db: Session = Depends(get_db)):
-    return db.query(models.RoteiroProducao).all()
+# --- LIST ALL PRODUCTION ROUTES ---
+@router.get("/", response_model=list[schemas.ProductionRoutingResponse])
+def list_production_routes(db: Session = Depends(get_db)):
+    return db.query(models.ProductionRoute).all()
 
 
-# --- OBTER ROTEIRO POR ID ---
-@router.get("/{roteiro_id}", response_model=schemas.RoteiroProducaoResponse)
-def obter_roteiro(roteiro_id: int, db: Session = Depends(get_db)):
-    roteiro = db.query(models.RoteiroProducao).filter(models.RoteiroProducao.id == roteiro_id).first()
-    if not roteiro:
-        raise HTTPException(status_code=404, detail="Roteiro não encontrado")
-    return roteiro
+# --- GET PRODUCTION ROUTE BY ID ---
+@router.get("/{route_id}", response_model=schemas.ProductionRoutingResponse)
+def get_production_route(route_id: int, db: Session = Depends(get_db)):
+    route = db.query(models.ProductionRoute).filter(models.ProductionRoute.id == route_id).first()
+    if not route:
+        raise HTTPException(status_code=404, detail="Production route not found")
+    return route
 
 
-# --- ATUALIZAR ROTEIRO ---
-@router.put("/{roteiro_id}", response_model=schemas.RoteiroProducaoResponse)
-def atualizar_roteiro(roteiro_id: int, roteiro_update: schemas.RoteiroProducaoUpdate, db: Session = Depends(get_db)):
-    roteiro = db.query(models.RoteiroProducao).filter(models.RoteiroProducao.id == roteiro_id).first()
-    if not roteiro:
-        raise HTTPException(status_code=404, detail="Roteiro não encontrado")
+# --- UPDATE PRODUCTION ROUTE ---
+@router.put("/{route_id}", response_model=schemas.ProductionRoutingResponse)
+def update_production_route(route_id: int, route_update: schemas.ProductionRoutingUpdate, db: Session = Depends(get_db)):
+    route = db.query(models.ProductionRoute).filter(models.ProductionRoute.id == route_id).first()
+    if not route:
+        raise HTTPException(status_code=404, detail="Production route not found")
 
-    for key, value in roteiro_update.dict(exclude_unset=True, exclude={"operacoes"}).items():
-        setattr(roteiro, key, value)
+    for key, value in route_update.dict(exclude_unset=True, exclude={"operations"}).items():
+        setattr(route, key, value)
 
-    # se veio lista de operações novas → substitui
-    if roteiro_update.operacoes is not None:
-        db.query(models.RoteiroOperacao).filter(models.RoteiroOperacao.roteiro_id == roteiro.id).delete()
-        for op in roteiro_update.operacoes:
-            nova_op = models.RoteiroOperacao(roteiro_id=roteiro.id, **op.dict())
-            db.add(nova_op)
+    # If a new operations list was provided → replace old ones
+    if route_update.operations is not None:
+        db.query(models.RouteOperation).filter(models.RouteOperation.route_id == route.id).delete()
+        for op in route_update.operations:
+            new_op = models.RouteOperation(route_id=route.id, **op.dict())
+            db.add(new_op)
 
     db.commit()
-    db.refresh(roteiro)
-    return roteiro
+    db.refresh(route)
+    return route
 
 
-# --- DELETAR ROTEIRO ---
-@router.delete("/{roteiro_id}")
-def deletar_roteiro(roteiro_id: int, db: Session = Depends(get_db)):
-    roteiro = db.query(models.RoteiroProducao).filter(models.RoteiroProducao.id == roteiro_id).first()
-    if not roteiro:
-        raise HTTPException(status_code=404, detail="Roteiro não encontrado")
+# --- DELETE PRODUCTION ROUTE ---
+@router.delete("/{route_id}")
+def delete_production_route(route_id: int, db: Session = Depends(get_db)):
+    route = db.query(models.ProductionRoute).filter(models.ProductionRoute.id == route_id).first()
+    if not route:
+        raise HTTPException(status_code=404, detail="Production route not found")
 
-    db.delete(roteiro)
+    db.delete(route)
     db.commit()
-    return {"detail": "Roteiro deletado com sucesso"}
+    return {"detail": "Production route successfully deleted"}

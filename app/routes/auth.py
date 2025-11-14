@@ -13,9 +13,9 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     if db.query(models.User).filter(models.User.email == user.email).first():
         raise HTTPException(status_code=400, detail="E-mail já cadastrado.")
     new_user = models.User(
-        nome=user.nome,
+        name=user.name,
         email=user.email,
-        senha_hash=hash_password(user.senha)
+        password_hash=hash_password(user.password)
     )
     db.add(new_user)
     db.commit()
@@ -26,7 +26,7 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 @router.post("/login", response_model=schemas.Token)
 def login(user_data: schemas.LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == user_data.email).first()
-    if not user or not verify_password(user_data.senha, user.senha_hash):
+    if not user or not verify_password(user_data.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais inválidas.")
 
     access_token = create_access_token(
@@ -41,14 +41,14 @@ def update_password(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    # Verifica se a senha atual confere
-    if not verify_password(data.senha_atual, current_user.senha_hash):
-        raise HTTPException(status_code=400, detail="Senha atual incorreta.")
-    if not data.nova_senha == data.repetir_nova_senha:
-        raise HTTPException(status_code=400, detail="As novas senhas não coincidem.")
+    # Verifica se a password atual confere
+    if not verify_password(data.current_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="password atual incorreta.")
+    if not data.new_password == data.repeat_new_password:
+        raise HTTPException(status_code=400, detail="As novas passwords não coincidem.")
     
-    # Atualiza a senha
-    current_user.senha_hash = hash_password(data.nova_senha)
+    # Atualiza a password
+    current_user.password_hash = hash_password(data.new_password)
     db.commit()
     db.refresh(current_user)
     return {"message": "Senha atualizada com sucesso."}

@@ -5,58 +5,62 @@ from app.database import get_db
 from app.auth import get_current_user
 
 router = APIRouter(
-    prefix="/produtos",
-    tags=["Produtos"],
+    prefix="/products",
+    tags=["Products"],
     dependencies=[Depends(get_current_user)]
 )
 
-@router.post("/", response_model=schemas.ProdutoResponse)
-def criar_produto(produto: schemas.ProdutoCreate, db: Session = Depends(get_db)):
-    codigo_existente = db.query(models.Produto).filter(models.Produto.codigo == produto.codigo).first()
-    if codigo_existente:
-        raise HTTPException(status_code=400, detail="Código de produto já existente")
+@router.post("/", response_model=schemas.ProductResponse)
+def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
+    existing_code = db.query(models.Product).filter(models.Product.code == product.code).first()
+    if existing_code:
+        raise HTTPException(status_code=400, detail="Product code already exists")
 
-    if produto.produto_pai_id:
-        pai = db.query(models.Produto).filter(models.Produto.id == produto.produto_pai_id).first()
-        if not pai:
-            raise HTTPException(status_code=400, detail="Produto pai não encontrado")
+    if product.parent_product_id:
+        parent = db.query(models.Product).filter(models.Product.id == product.parent_product_id).first()
+        if not parent:
+            raise HTTPException(status_code=400, detail="Parent product not found")
 
-    novo_produto = models.Produto(**produto.dict(exclude_unset=True))
-    db.add(novo_produto)
+    new_product = models.Product(**product.dict(exclude_unset=True))
+    db.add(new_product)
     db.commit()
-    db.refresh(novo_produto)
-    return novo_produto
+    db.refresh(new_product)
+    return new_product
 
-@router.get("/", response_model=list[schemas.ProdutoResponse])
-def listar_produtos(db: Session = Depends(get_db)):
-    return db.query(models.Produto).all()
 
-@router.get("/{produto_id}", response_model=schemas.ProdutoResponse)
-def obter_produto(produto_id: int, db: Session = Depends(get_db)):
-    produto = db.query(models.Produto).filter(models.Produto.id == produto_id).first()
-    if not produto:
-        raise HTTPException(status_code=404, detail="Produto não encontrado")
-    return produto
+@router.get("/", response_model=list[schemas.ProductResponse])
+def list_products(db: Session = Depends(get_db)):
+    return db.query(models.Product).all()
 
-@router.put("/{produto_id}", response_model=schemas.ProdutoResponse)
-def atualizar_produto(produto_id: int, produto_update: schemas.ProdutoUpdate, db: Session = Depends(get_db)):
-    produto = db.query(models.Produto).filter(models.Produto.id == produto_id).first()
-    if not produto:
-        raise HTTPException(status_code=404, detail="Produto não encontrado")
 
-    for key, value in produto_update.dict(exclude_unset=True).items():
-        setattr(produto, key, value)
+@router.get("/{product_id}", response_model=schemas.ProductResponse)
+def get_product(product_id: int, db: Session = Depends(get_db)):
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+
+@router.put("/{product_id}", response_model=schemas.ProductResponse)
+def update_product(product_id: int, product_update: schemas.ProductUpdate, db: Session = Depends(get_db)):
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    for key, value in product_update.dict(exclude_unset=True).items():
+        setattr(product, key, value)
 
     db.commit()
-    db.refresh(produto)
-    return produto
+    db.refresh(product)
+    return product
 
-@router.delete("/{produto_id}")
-def deletar_produto(produto_id: int, db: Session = Depends(get_db)):
-    produto = db.query(models.Produto).filter(models.Produto.id == produto_id).first()
-    if not produto:
-        raise HTTPException(status_code=404, detail="Produto não encontrado")
 
-    db.delete(produto)
+@router.delete("/{product_id}")
+def delete_product(product_id: int, db: Session = Depends(get_db)):
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    db.delete(product)
     db.commit()
-    return {"detail": "Produto deletado com sucesso"}
+    return {"detail": "Product successfully deleted"}

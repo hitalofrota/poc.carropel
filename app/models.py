@@ -1,318 +1,313 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, ForeignKey, Table, Enum
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
 from datetime import datetime
 import enum
 
+# --- USER ---
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String, nullable=False)
+    name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
-    senha_hash = Column(String, nullable=False)
+    password_hash = Column(String, nullable=False)
 
-class UnidadeMedida(Base):
-    __tablename__ = "unidades_medida"
-
-    id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String(50), nullable=False, unique=True)  # Ex: Quilograma
-    sigla = Column(String(10), nullable=False, unique=True)  # Ex: kg
-
-    materiais = relationship("Material", back_populates="unidade_medida")
-
-class CentroTrabalho(Base):
-    __tablename__ = "centros_trabalho"
+# --- UNIT OF MEASURE ---
+class UnitOfMeasure(Base):
+    __tablename__ = "units_of_measure"
 
     id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String(100), nullable=False, unique=True)
-    descricao = Column(String(255), nullable=True)
+    name = Column(String(50), nullable=False, unique=True)  # e.g., Kilogram
+    abbreviation = Column(String(10), nullable=False, unique=True)  # e.g., kg
 
-    # Relacionamento com máquinas (1:N)
-    maquinas = relationship(
-        "Maquina",
-        back_populates="centro_trabalho",
+    materials = relationship("Material", back_populates="unit_of_measure")
+
+# --- WORK CENTER ---
+class WorkCenter(Base):
+    __tablename__ = "work_centers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, unique=True)
+    description = Column(String(255), nullable=True)
+
+    # Relationship with machines (1:N)
+    machines = relationship(
+        "Machine",
+        back_populates="work_center",
         cascade="all, delete-orphan"
     )
 
-class Maquina(Base):
-    __tablename__ = "maquinas"
+# --- MACHINE ---
+class Machine(Base):
+    __tablename__ = "machines"
 
     id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String(100), nullable=False)
-    codigo = Column(String(50), nullable=False, unique=True)
-    descricao = Column(String(255), nullable=True)
+    name = Column(String(100), nullable=False)
+    code = Column(String(50), nullable=False, unique=True)
+    description = Column(String(255), nullable=True)
 
-    centro_trabalho_id = Column(
-        Integer, 
-        ForeignKey("centros_trabalho.id"), 
-        nullable=False
-    )
+    work_center_id = Column(Integer, ForeignKey("work_centers.id"), nullable=False)
 
-    # Relacionamento com centro de trabalho (N:1)
-    centro_trabalho = relationship("CentroTrabalho", back_populates="maquinas")
+    # Relationship with work center (N:1)
+    work_center = relationship("WorkCenter", back_populates="machines")
 
-class Operacao(Base):
-    __tablename__ = "operacoes"
+# --- OPERATION ---
+class Operation(Base):
+    __tablename__ = "operations"
 
     id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String(100), nullable=False, unique=True)
-    descricao = Column(Text, nullable=True)
+    name = Column(String(100), nullable=False, unique=True)
+    description = Column(Text, nullable=True)
 
-# --- ENUMs ---
-class OrdemStatus(enum.Enum):
-    planejada = "planejada"
-    em_producao = "em_producao"
-    finalizada = "finalizada"
-    cancelada = "cancelada"
+# --- ENUMS ---
+class ProductionOrderStatus(enum.Enum):
+    planned = "planned"
+    in_production = "in_production"
+    finished = "finished"
+    cancelled = "cancelled"
 
-class PedidoStatus(enum.Enum):
-    planejado = "planejado"
-    em_producao = "em_producao"
-    finalizado = "finalizado"
-    cancelado = "cancelado"
+class SalesOrderStatus(enum.Enum):
+    planned = "planned"
+    in_production = "in_production"
+    finished = "finished"
+    cancelled = "cancelled"
 
-# --- MODELOS PRINCIPAIS ---
-
-class Produto(Base):
-    __tablename__ = "produtos"
+# --- PRODUCT ---
+class Product(Base):
+    __tablename__ = "products"
 
     id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String(200), nullable=False)
-    codigo = Column(String(100), unique=True, nullable=False)
-    descricao = Column(Text, nullable=True)
-    custo_unitario = Column(Float, nullable=True)
-    venda_unitario = Column(Float, nullable=True)
-    peso_liquido = Column(Float, nullable=True)
-    peso_bruto = Column(Float, nullable=True)
+    name = Column(String(200), nullable=False)
+    code = Column(String(100), unique=True, nullable=False)
+    description = Column(Text, nullable=True)
+    unit_cost = Column(Float, nullable=True)
+    unit_price = Column(Float, nullable=True)
+    net_weight = Column(Float, nullable=True)
+    gross_weight = Column(Float, nullable=True)
 
-    produto_pai_id = Column(Integer, ForeignKey("produtos.id"), nullable=True)
+    parent_product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
 
-    produto_pai = relationship(
-        "Produto",
+    parent_product = relationship(
+        "Product",
         remote_side=[id],
-        back_populates="subprodutos"
+        back_populates="subproducts"
     )
-    subprodutos = relationship(
-        "Produto",
-        back_populates="produto_pai",
+    subproducts = relationship(
+        "Product",
+        back_populates="parent_product",
         cascade="all, delete-orphan"
     )
 
-    ordens = relationship("OrdemProducao", back_populates="produto")
-    materiais = relationship(
-        "ProdutoMaterial",
-        back_populates="produto",
+    production_orders = relationship("ProductionOrder", back_populates="product")
+    materials = relationship(
+        "ProductMaterial",
+        back_populates="product",
         cascade="all, delete-orphan",
         passive_deletes=True
     )
-    roteiros_producao = relationship(
-        "RoteiroProducao",
-        back_populates="produto",
+    production_routes = relationship(
+        "ProductionRoute",
+        back_populates="product",
         cascade="all, delete-orphan",
         passive_deletes=True
     )
 
+# --- MATERIAL ---
 class Material(Base):
-    __tablename__ = "materiais"
+    __tablename__ = "materials"
 
     id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String(200), nullable=False)
-    descricao = Column(Text, nullable=True)
-    codigo = Column(String(100), unique=True, nullable=False)
-    unidade_medida_id = Column(Integer, ForeignKey("unidades_medida.id"), nullable=False)
-    custo_unitario = Column(Float, nullable=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    code = Column(String(100), unique=True, nullable=False)
+    unit_of_measure_id = Column(Integer, ForeignKey("units_of_measure.id"), nullable=False)
+    unit_cost = Column(Float, nullable=True)
 
-    unidade_medida = relationship("UnidadeMedida", back_populates="materiais")
-    materiais_produtos = relationship(
-        "ProdutoMaterial",
+    unit_of_measure = relationship("UnitOfMeasure", back_populates="materials")
+    product_materials = relationship(
+        "ProductMaterial",
         back_populates="material",
         cascade="all, delete-orphan",
         passive_deletes=True
     )
-    materiais_ordens = relationship(
-        "MaterialOrdem",
+    order_materials = relationship(
+        "MaterialOrder",
         back_populates="material",
         cascade="all, delete-orphan",
         passive_deletes=True
     )
 
-# --- ORDEM DE PRODUÇÃO ---
-class OrdemProducao(Base):
-    __tablename__ = "ordens_producao"
+# --- PRODUCTION ORDER ---
+class ProductionOrder(Base):
+    __tablename__ = "production_orders"
 
     id = Column(Integer, primary_key=True, index=True)
-    codigo = Column(String(100), unique=True, nullable=False)
-    produto_id = Column(Integer, ForeignKey("produtos.id"), nullable=False)
-    roteiro_id = Column(Integer, ForeignKey("roteiros_producao.id"), nullable=True) 
-    quantidade_planejada = Column(Float, nullable=False)
-    data_criacao = Column(DateTime, default=datetime.utcnow)
-    data_inicio = Column(DateTime, nullable=True)
-    data_fim = Column(DateTime, nullable=True)
-    status = Column(Enum(OrdemStatus), default=OrdemStatus.planejada)
-    observacoes = Column(Text, nullable=True)
-    pedido_id = Column(Integer, ForeignKey("pedidos_venda.id"), nullable=True)
+    code = Column(String(100), unique=True, nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    route_id = Column(Integer, ForeignKey("production_routes.id"), nullable=True)
+    planned_quantity = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    start_date = Column(DateTime, nullable=True)
+    end_date = Column(DateTime, nullable=True)
+    status = Column(Enum(ProductionOrderStatus), default=ProductionOrderStatus.planned)
+    notes = Column(Text, nullable=True)
+    sales_order_id = Column(Integer, ForeignKey("sales_orders.id"), nullable=True)
 
-    produto = relationship("Produto", back_populates="ordens")
-    pedido = relationship("PedidoVenda", back_populates="ordens")
-    roteiro = relationship("RoteiroProducao")
+    product = relationship("Product", back_populates="production_orders")
+    sales_order = relationship("SalesOrder", back_populates="production_orders")
+    route = relationship("ProductionRoute")
 
-    materiais_usados = relationship(
-        "MaterialOrdem",
-        back_populates="ordem",
+    used_materials = relationship(
+        "MaterialOrder",
+        back_populates="production_order",
         cascade="all, delete-orphan",
         passive_deletes=True
     )
 
-    operacoes = relationship(
-        "OrdemProducaoOperacao",
-        back_populates="ordem_producao",
+    operations = relationship(
+        "ProductionOrderOperation",
+        back_populates="production_order",
         cascade="all, delete-orphan",
         passive_deletes=True
     )
 
     def __repr__(self):
-        return f"<OrdemProducao(codigo={self.codigo}, produto={self.produto_id}, status={self.status})>"
+        return f"<ProductionOrder(code={self.code}, product={self.product_id}, status={self.status})>"
 
-class OrdemProducaoOperacao(Base):
-    __tablename__ = "ordem_producao_operacoes"
+# --- PRODUCTION ORDER OPERATION ---
+class ProductionOrderOperation(Base):
+    __tablename__ = "production_order_operations"
 
     id = Column(Integer, primary_key=True, index=True)
-    ordem_producao_id = Column(Integer, ForeignKey("ordens_producao.id", ondelete="CASCADE"), nullable=False)
-    ordem_producao = relationship("OrdemProducao", back_populates="operacoes")
+    production_order_id = Column(Integer, ForeignKey("production_orders.id", ondelete="CASCADE"), nullable=False)
+    production_order = relationship("ProductionOrder", back_populates="operations")
 
-    # --- PLANEJADO (do roteiro) ---
-    operacao_planejada_id = Column(Integer, ForeignKey("operacoes.id"), nullable=False)
-    centro_trabalho_planejado_id = Column(Integer, ForeignKey("centros_trabalho.id"), nullable=True)
-    maquina_planejada_id = Column(Integer, ForeignKey("maquinas.id"), nullable=True)
+    # --- PLANNED (from route) ---
+    planned_operation_id = Column(Integer, ForeignKey("operations.id"), nullable=False)
+    planned_work_center_id = Column(Integer, ForeignKey("work_centers.id"), nullable=True)
+    planned_machine_id = Column(Integer, ForeignKey("machines.id"), nullable=True)
 
-    # --- REALIZADO (durante apontamento) ---
-    operacao_realizada_id = Column(Integer, ForeignKey("operacoes.id"), nullable=True)
-    centro_trabalho_realizado_id = Column(Integer, ForeignKey("centros_trabalho.id"), nullable=True)
-    maquina_realizada_id = Column(Integer, ForeignKey("maquinas.id"), nullable=True)
+    # --- ACTUAL (during execution) ---
+    actual_operation_id = Column(Integer, ForeignKey("operations.id"), nullable=True)
+    actual_work_center_id = Column(Integer, ForeignKey("work_centers.id"), nullable=True)
+    actual_machine_id = Column(Integer, ForeignKey("machines.id"), nullable=True)
 
-    # --- TEMPOS E QUANTIDADES ---
-    inicio_planejado = Column(DateTime, nullable=True)
-    fim_planejado = Column(DateTime, nullable=True)
-    inicio_realizado = Column(DateTime, nullable=True)
-    fim_realizado = Column(DateTime, nullable=True)
-    quantidade_planejada = Column(Float, nullable=True)
-    quantidade_produzida = Column(Float, nullable=True)
+    # --- TIMES AND QUANTITIES ---
+    planned_start = Column(DateTime, nullable=True)
+    planned_end = Column(DateTime, nullable=True)
+    actual_start = Column(DateTime, nullable=True)
+    actual_end = Column(DateTime, nullable=True)
+    planned_quantity = Column(Float, nullable=True)
+    produced_quantity = Column(Float, nullable=True)
 
     def __repr__(self):
         return (
-            f"<OrdemProducaoOperacao(ordem={self.ordem_producao_id}, "
-            f"planejado_op={self.operacao_planejada_id}, realizado_op={self.operacao_realizada_id})>"
+            f"<ProductionOrderOperation(order={self.production_order_id}, "
+            f"planned_op={self.planned_operation_id}, actual_op={self.actual_operation_id})>"
         )
 
-
-# --- RELAÇÃO N:N ENTRE PRODUTO E MATERIAL ---
-class ProdutoMaterial(Base):
-    __tablename__ = "produtos_materiais"
-
-    id = Column(Integer, primary_key=True, index=True)
-    produto_id = Column(Integer, ForeignKey("produtos.id", ondelete="CASCADE"), nullable=False)
-    material_id = Column(Integer, ForeignKey("materiais.id", ondelete="CASCADE"), nullable=False)
-    quantidade = Column(Float, nullable=False)
-
-    # Relacionamentos bidirecionais
-    produto = relationship("Produto", back_populates="materiais")
-    material = relationship("Material", back_populates="materiais_produtos")
-
-
-# --- RELAÇÃO N:N ENTRE ORDEM DE PRODUÇÃO E MATERIAL ---
-class MaterialOrdem(Base):
-    __tablename__ = "materiais_ordens"
+# --- PRODUCT ↔ MATERIAL (M:N) ---
+class ProductMaterial(Base):
+    __tablename__ = "product_materials"
 
     id = Column(Integer, primary_key=True, index=True)
-    ordem_id = Column(Integer, ForeignKey("ordens_producao.id", ondelete="CASCADE"), nullable=False)
-    material_id = Column(Integer, ForeignKey("materiais.id", ondelete="CASCADE"), nullable=False)
-    quantidade_usada = Column(Float, nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+    material_id = Column(Integer, ForeignKey("materials.id", ondelete="CASCADE"), nullable=False)
+    quantity = Column(Float, nullable=False)
 
-    # Relacionamentos bidirecionais
-    ordem = relationship("OrdemProducao", back_populates="materiais_usados")
-    material = relationship("Material", back_populates="materiais_ordens")
+    product = relationship("Product", back_populates="materials")
+    material = relationship("Material", back_populates="product_materials")
 
-
-class RoteiroProducao(Base):
-    __tablename__ = "roteiros_producao"
+# --- PRODUCTION ORDER ↔ MATERIAL (M:N) ---
+class MaterialOrder(Base):
+    __tablename__ = "material_orders"
 
     id = Column(Integer, primary_key=True, index=True)
-    produto_id = Column(Integer, ForeignKey("produtos.id", ondelete="CASCADE"), nullable=False)
+    production_order_id = Column(Integer, ForeignKey("production_orders.id", ondelete="CASCADE"), nullable=False)
+    material_id = Column(Integer, ForeignKey("materials.id", ondelete="CASCADE"), nullable=False)
+    quantity_used = Column(Float, nullable=False)
 
-    codigo = Column(String(100), unique=False, nullable=True)  # código opcional
-    descricao = Column(Text, nullable=True)
-    ativo = Column(Boolean, default=True)  # pode ter roteiros alternativos inativos
-    criado_em = Column(DateTime, default=datetime.utcnow)
+    production_order = relationship("ProductionOrder", back_populates="used_materials")
+    material = relationship("Material", back_populates="order_materials")
 
-    # --- RELACIONAMENTOS ---
-    produto = relationship("Produto", back_populates="roteiros_producao")
-    operacoes = relationship(
-        "RoteiroOperacao",
-        back_populates="roteiro",
+# --- PRODUCTION ROUTE ---
+class ProductionRoute(Base):
+    __tablename__ = "production_routes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+
+    code = Column(String(100), unique=False, nullable=True)
+    description = Column(Text, nullable=True)
+    active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    product = relationship("Product", back_populates="production_routes")
+    operations = relationship(
+        "RouteOperation",
+        back_populates="route",
         cascade="all, delete-orphan",
         passive_deletes=True
     )
 
     def __repr__(self):
-        return f"<RoteiroProducao(id={self.id}, produto_id={self.produto_id}, ativo={self.ativo})>"
+        return f"<ProductionRoute(id={self.id}, product_id={self.product_id}, active={self.active})>"
 
-class RoteiroOperacao(Base):
-    __tablename__ = "roteiro_operacoes"
+# --- ROUTE OPERATION ---
+class RouteOperation(Base):
+    __tablename__ = "route_operations"
 
     id = Column(Integer, primary_key=True, index=True)
-    roteiro_id = Column(Integer, ForeignKey("roteiros_producao.id", ondelete="CASCADE"), nullable=False)
+    route_id = Column(Integer, ForeignKey("production_routes.id", ondelete="CASCADE"), nullable=False)
 
-    operacao_id = Column(Integer, ForeignKey("operacoes.id"), nullable=False)
-    centro_trabalho_id = Column(Integer, ForeignKey("centros_trabalho.id"), nullable=False)
-    maquina_id = Column(Integer, ForeignKey("maquinas.id"), nullable=True)
+    operation_id = Column(Integer, ForeignKey("operations.id"), nullable=False)
+    work_center_id = Column(Integer, ForeignKey("work_centers.id"), nullable=False)
+    machine_id = Column(Integer, ForeignKey("machines.id"), nullable=True)
 
-    sequencia = Column(Integer, nullable=False)  # ordem de execução
-    tempo_padrao_min = Column(Integer, nullable=True)  # tempo planejado padrão
-    observacoes = Column(Text, nullable=True)
+    sequence = Column(Integer, nullable=False)
+    standard_time_min = Column(Integer, nullable=True)
+    notes = Column(Text, nullable=True)
 
-    criado_em = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    # --- RELACIONAMENTOS ---
-    roteiro = relationship("RoteiroProducao", back_populates="operacoes")
-    operacao = relationship("Operacao")
-    centro_trabalho = relationship("CentroTrabalho")
-    maquina = relationship("Maquina")
+    route = relationship("ProductionRoute", back_populates="operations")
+    operation = relationship("Operation")
+    work_center = relationship("WorkCenter")
+    machine = relationship("Machine")
 
     def __repr__(self):
         return (
-            f"<RoteiroOperacao(roteiro={self.roteiro_id}, seq={self.sequencia}, "
-            f"op={self.operacao_id}, centro={self.centro_trabalho_id})>"
+            f"<RouteOperation(route={self.route_id}, seq={self.sequence}, "
+            f"op={self.operation_id}, center={self.work_center_id})>"
         )
 
-# --- PEDIDO DE VENDA ---
-class PedidoVenda(Base):
-    __tablename__ = "pedidos_venda"
+# --- SALES ORDER ---
+class SalesOrder(Base):
+    __tablename__ = "sales_orders"
 
     id = Column(Integer, primary_key=True, index=True)
-    numero_pedido = Column(String(100), unique=True, nullable=False)
-    cliente = Column(String(200), nullable=False)
-    data_pedido = Column(DateTime, default=datetime.utcnow)
-    observacoes = Column(Text, nullable=True)
-    status = Column(Enum(PedidoStatus), default=PedidoStatus.planejado)
+    order_number = Column(String(100), unique=True, nullable=False)
+    client = Column(String(200), nullable=False)
+    order_date = Column(DateTime, default=datetime.utcnow)
+    notes = Column(Text, nullable=True)
+    status = Column(Enum(SalesOrderStatus), default=SalesOrderStatus.planned)
 
-    # Relacionamento com itens e ordens
-    itens = relationship("PedidoVendaItem", back_populates="pedido", cascade="all, delete-orphan")
-    ordens = relationship("OrdemProducao", back_populates="pedido")
+    items = relationship("SalesOrderItem", back_populates="sales_order", cascade="all, delete-orphan")
+    production_orders = relationship("ProductionOrder", back_populates="sales_order")
 
     def __repr__(self):
-        return f"<PedidoVenda(numero_pedido={self.numero_pedido}, cliente={self.cliente})>"
+        return f"<SalesOrder(order_number={self.order_number}, client={self.client})>"
 
-
-class PedidoVendaItem(Base):
-    __tablename__ = "pedidos_venda_itens"
+# --- SALES ORDER ITEM ---
+class SalesOrderItem(Base):
+    __tablename__ = "sales_order_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    pedido_id = Column(Integer, ForeignKey("pedidos_venda.id", ondelete="CASCADE"), nullable=False)
-    produto_id = Column(Integer, ForeignKey("produtos.id"), nullable=False)
-    quantidade = Column(Float, nullable=False)
+    sales_order_id = Column(Integer, ForeignKey("sales_orders.id", ondelete="CASCADE"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    quantity = Column(Float, nullable=False)
 
-    # Relacionamentos
-    pedido = relationship("PedidoVenda", back_populates="itens")
-    produto = relationship("Produto")
+    sales_order = relationship("SalesOrder", back_populates="items")
+    product = relationship("Product")

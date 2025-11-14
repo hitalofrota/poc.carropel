@@ -1,4 +1,4 @@
-# router_produtos.py
+# router_products.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas
@@ -6,71 +6,71 @@ from app.database import get_db
 from app.auth import get_current_user
 
 router = APIRouter(
-    prefix="/produtos",
-    tags=["Produtos"],
+    prefix="/products",
+    tags=["Products"],
     dependencies=[Depends(get_current_user)]
 )
 
-# ➕ Adicionar subproduto (produto filho)
-@router.post("/{produto_pai_id}/subprodutos", response_model=schemas.ProdutoResponse)
-def adicionar_subproduto(
-    produto_pai_id: int,
-    subproduto_data: schemas.ProdutoCreate,
+# ➕ Add subproduct (child product)
+@router.post("/{parent_product_id}/subproducts", response_model=schemas.ProductResponse)
+def add_subproduct(
+    parent_product_id: int,
+    subproduct_data: schemas.ProductCreate,
     db: Session = Depends(get_db)
 ):
-    produto_pai = db.query(models.Produto).filter(models.Produto.id == produto_pai_id).first()
-    if not produto_pai:
-        raise HTTPException(status_code=404, detail="Produto pai não encontrado")
+    parent_product = db.query(models.Product).filter(models.Product.id == parent_product_id).first()
+    if not parent_product:
+        raise HTTPException(status_code=404, detail="Parent product not found")
 
-    novo_subproduto = models.Produto(
-        nome=subproduto_data.nome,
-        codigo=subproduto_data.codigo,
-        descricao=subproduto_data.descricao,
-        unidade_medida_id=subproduto_data.unidade_medida_id,
-        custo_unitario=subproduto_data.custo_unitario,
-        produto_pai_id=produto_pai_id  # 🔹 vincula ao produto pai
+    new_subproduct = models.Product(
+        name=subproduct_data.name,
+        code=subproduct_data.code,
+        description=subproduct_data.description,
+        unit_measure_id=subproduct_data.unit_measure_id,
+        unit_cost=subproduct_data.unit_cost,
+        parent_product_id=parent_product_id  # 🔹 links to parent product
     )
 
-    db.add(novo_subproduto)
+    db.add(new_subproduct)
     db.commit()
-    db.refresh(novo_subproduto)
+    db.refresh(new_subproduct)
 
-    return novo_subproduto
+    return new_subproduct
 
-@router.post("/{produto_pai_id}/subprodutos/{subproduto_id}", response_model=schemas.ProdutoResponse)
-def vincular_subproduto_existente(
-    produto_pai_id: int,
-    subproduto_id: int,
+
+@router.post("/{parent_product_id}/subproducts/{subproduct_id}", response_model=schemas.ProductResponse)
+def link_existing_subproduct(
+    parent_product_id: int,
+    subproduct_id: int,
     db: Session = Depends(get_db)
 ):
-    # Busca o produto pai
-    produto_pai = db.query(models.Produto).filter(models.Produto.id == produto_pai_id).first()
-    if not produto_pai:
-        raise HTTPException(status_code=404, detail="Produto pai não encontrado")
+    # Find parent product
+    parent_product = db.query(models.Product).filter(models.Product.id == parent_product_id).first()
+    if not parent_product:
+        raise HTTPException(status_code=404, detail="Parent product not found")
 
-    # Busca o produto que será o subproduto
-    subproduto = db.query(models.Produto).filter(models.Produto.id == subproduto_id).first()
-    if not subproduto:
-        raise HTTPException(status_code=404, detail="Produto filho não encontrado")
+    # Find the product that will become the subproduct
+    subproduct = db.query(models.Product).filter(models.Product.id == subproduct_id).first()
+    if not subproduct:
+        raise HTTPException(status_code=404, detail="Child product not found")
 
-    # Evita ciclos (um produto não pode ser pai de si mesmo)
-    if produto_pai_id == subproduto_id:
-        raise HTTPException(status_code=400, detail="Um produto não pode ser subproduto de si mesmo")
+    # Prevent cycles (a product cannot be a subproduct of itself)
+    if parent_product_id == subproduct_id:
+        raise HTTPException(status_code=400, detail="A product cannot be a subproduct of itself")
 
-    # Atualiza o vínculo pai-filho
-    subproduto.produto_pai_id = produto_pai_id
+    # Update parent-child relationship
+    subproduct.parent_product_id = parent_product_id
 
     db.commit()
-    db.refresh(subproduto)
+    db.refresh(subproduct)
 
-    return subproduto
+    return subproduct
 
 
-@router.get("/{produto_pai_id}/subprodutos", response_model=list[schemas.ProdutoResponse])
-def listar_subprodutos(produto_pai_id: int, db: Session = Depends(get_db)):
-    produto_pai = db.query(models.Produto).filter(models.Produto.id == produto_pai_id).first()
-    if not produto_pai:
-        raise HTTPException(status_code=404, detail="Produto pai não encontrado")
+@router.get("/{parent_product_id}/subproducts", response_model=list[schemas.ProductResponse])
+def list_subproducts(parent_product_id: int, db: Session = Depends(get_db)):
+    parent_product = db.query(models.Product).filter(models.Product.id == parent_product_id).first()
+    if not parent_product:
+        raise HTTPException(status_code=404, detail="Parent product not found")
 
-    return produto_pai.subprodutos
-
+    return parent_product.subproducts

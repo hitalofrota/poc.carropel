@@ -3,54 +3,54 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
 
-router = APIRouter(prefix="/pedidos-venda", tags=["Pedidos de Venda"])
+router = APIRouter(prefix="/sales-orders", tags=["Sales Orders"])
 
 
-@router.post("/", response_model=schemas.PedidoVendaResponse)
-def criar_pedido_venda(pedido_data: schemas.PedidoVendaCreate, db: Session = Depends(get_db)):
-    # Evitar duplicação
-    if db.query(models.PedidoVenda).filter_by(numero_pedido=pedido_data.numero_pedido).first():
-        raise HTTPException(status_code=400, detail="Número de pedido já existe.")
+@router.post("/", response_model=schemas.SalesOrderResponse)
+def create_sales_order(order_data: schemas.SalesOrderCreate, db: Session = Depends(get_db)):
+    # Prevent duplication
+    if db.query(models.SalesOrder).filter_by(order_number=order_data.order_number).first():
+        raise HTTPException(status_code=400, detail="Order number already exists.")
 
-    pedido = models.PedidoVenda(
-        numero_pedido=pedido_data.numero_pedido,
-        cliente=pedido_data.cliente,
-        observacoes=pedido_data.observacoes,
+    order = models.SalesOrder(
+        order_number=order_data.order_number,
+        customer=order_data.customer,
+        notes=order_data.notes,
     )
-    db.add(pedido)
-    db.flush()  # garante ID antes dos itens
+    db.add(order)
+    db.flush()  # ensures ID before adding items
 
-    for item in pedido_data.itens:
-        novo_item = models.PedidoVendaItem(
-            pedido_id=pedido.id,
-            produto_id=item.produto_id,
-            quantidade=item.quantidade
+    for item in order_data.items:
+        new_item = models.SalesOrderItem(
+            order_id=order.id,
+            product_id=item.product_id,
+            quantity=item.quantity
         )
-        db.add(novo_item)
+        db.add(new_item)
 
-        # Cria automaticamente uma ordem de produção vinculada
-        codigo_ordem = f"ORD-{pedido.numero_pedido}-{item.produto_id}"
-        ordem = models.OrdemProducao(
-            codigo=codigo_ordem,
-            produto_id=item.produto_id,
-            quantidade_planejada=item.quantidade,
-            pedido_id=pedido.id,
+        # Automatically create a linked production order
+        order_code = f"ORD-{order.order_number}-{item.product_id}"
+        production_order = models.ProductionOrder(
+            code=order_code,
+            product_id=item.product_id,
+            planned_quantity=item.quantity,
+            order_id=order.id,
         )
-        db.add(ordem)
+        db.add(production_order)
 
     db.commit()
-    db.refresh(pedido)
-    return pedido
+    db.refresh(order)
+    return order
 
 
-@router.get("/", response_model=list[schemas.PedidoVendaResponse])
-def listar_pedidos(db: Session = Depends(get_db)):
-    return db.query(models.PedidoVenda).all()
+@router.get("/", response_model=list[schemas.SalesOrderResponse])
+def list_sales_orders(db: Session = Depends(get_db)):
+    return db.query(models.SalesOrder).all()
 
 
-@router.get("/{pedido_id}", response_model=schemas.PedidoVendaResponse)
-def obter_pedido(pedido_id: int, db: Session = Depends(get_db)):
-    pedido = db.query(models.PedidoVenda).filter_by(id=pedido_id).first()
-    if not pedido:
-        raise HTTPException(status_code=404, detail="Pedido não encontrado")
-    return pedido
+@router.get("/{order_id}", response_model=schemas.SalesOrderResponse)
+def get_sales_order(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(models.SalesOrder).filter_by(id=order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Sales order not found")
+    return order
