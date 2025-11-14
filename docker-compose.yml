@@ -10,9 +10,10 @@ services:
       POSTGRES_PASSWORD: admin
       POSTGRES_DB: fastapi_poc
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
   db_test:
     image: postgres:15
     environment:
@@ -20,31 +21,48 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: test_db
     ports:
-      - "5433:5432" 
+      - "5433:5433"
 
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile-back
     container_name: fastapi-app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
-      - .:/code
+      - .:/code 
     ports:
       - "8000:8000"
     depends_on:
       - db
-  
+ 
   test:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile-back
     depends_on:
       - db_test
     environment:
       DATABASE_URL: postgresql://user:password@db_test:5432/test_db
       TESTING: "true"
     volumes:
-      - .:/app
+      - .:/app 
     command: pytest -v
     profiles:
-      - test  # Só roda quando especificado
+      - test
+
+  frontend:
+    build:
+      context: ./app-front
+      dockerfile: ../docker/Dockerfile-front
+    container_name: frontend-app
+    ports:
+      - "3000:8080"
+    volumes:
+      - ./app-front:/app-front
+      - /app-front/node_modules
+    depends_on:
+      - web 
 
 volumes:
   postgres_data:
