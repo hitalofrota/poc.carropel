@@ -5,43 +5,47 @@ from app.database import get_db
 from app.auth import get_current_user
 
 router = APIRouter(
-    prefix="/materiais",
-    tags=["Materiais"],
-    dependencies=[Depends(get_current_user)] 
+    prefix="/materials",
+    tags=["Materials"],
+    dependencies=[Depends(get_current_user)]
 )
 
+
 @router.post("/", response_model=schemas.MaterialResponse)
-def criar_material(material: schemas.MaterialCreate, db: Session = Depends(get_db)):
-    unidade = db.query(models.UnidadeMedida).filter(models.UnidadeMedida.id == material.unidade_medida_id).first()
-    if not unidade:
-        raise HTTPException(status_code=400, detail="Unidade de medida não encontrada")
+def create_material(material: schemas.MaterialCreate, db: Session = Depends(get_db)):
+    unit = db.query(models.UnitOfMeasure).filter(models.UnitOfMeasure.id == material.unit_of_measure_id).first()
+    if not unit:
+        raise HTTPException(status_code=400, detail="Unit of measure not found")
 
-    codigo_existente = db.query(models.Material).filter(models.Material.codigo == material.codigo).first()
-    if codigo_existente:
-        raise HTTPException(status_code=400, detail="Código de material já existente")
+    existing_code = db.query(models.Material).filter(models.Material.code == material.code).first()
+    if existing_code:
+        raise HTTPException(status_code=400, detail="Material code already exists")
 
-    novo_material = models.Material(**material.dict())
-    db.add(novo_material)
+    new_material = models.Material(**material.dict())
+    db.add(new_material)
     db.commit()
-    db.refresh(novo_material)
-    return novo_material
+    db.refresh(new_material)
+    return new_material
+
 
 @router.get("/", response_model=list[schemas.MaterialResponse])
-def listar_materiais(db: Session = Depends(get_db)):
+def list_materials(db: Session = Depends(get_db)):
     return db.query(models.Material).all()
 
+
 @router.get("/{material_id}", response_model=schemas.MaterialResponse)
-def obter_material(material_id: int, db: Session = Depends(get_db)):
+def get_material(material_id: int, db: Session = Depends(get_db)):
     material = db.query(models.Material).filter(models.Material.id == material_id).first()
     if not material:
-        raise HTTPException(status_code=404, detail="Material não encontrado")
+        raise HTTPException(status_code=404, detail="Material not found")
     return material
 
+
 @router.put("/{material_id}", response_model=schemas.MaterialResponse)
-def atualizar_material(material_id: int, material_update: schemas.MaterialUpdate, db: Session = Depends(get_db)):
+def update_material(material_id: int, material_update: schemas.MaterialUpdate, db: Session = Depends(get_db)):
     material = db.query(models.Material).filter(models.Material.id == material_id).first()
     if not material:
-        raise HTTPException(status_code=404, detail="Material não encontrado")
+        raise HTTPException(status_code=404, detail="Material not found")
 
     for key, value in material_update.dict(exclude_unset=True).items():
         setattr(material, key, value)
@@ -50,13 +54,13 @@ def atualizar_material(material_id: int, material_update: schemas.MaterialUpdate
     db.refresh(material)
     return material
 
+
 @router.delete("/{material_id}")
-def deletar_material(material_id: int, db: Session = Depends(get_db)):
+def delete_material(material_id: int, db: Session = Depends(get_db)):
     material = db.query(models.Material).filter(models.Material.id == material_id).first()
     if not material:
-        raise HTTPException(status_code=404, detail="Material não encontrado")
+        raise HTTPException(status_code=404, detail="Material not found")
 
     db.delete(material)
     db.commit()
-    return {"detail": "Material deletado com sucesso"}
-
+    return {"detail": "Material successfully deleted"}

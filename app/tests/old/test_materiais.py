@@ -82,8 +82,7 @@ def test_atualizar_material(client: TestClient, token: str, unidade_medida):
         "descricao": "Chapa 2mm",
         "codigo": "ALU2",
         "unidade_medida_id": unidade_medida["id"],
-        "estoque_atual": 20,
-        "preco_unitario": 18.0
+
     }, headers=headers)
     material = resp.json()
 
@@ -92,8 +91,7 @@ def test_atualizar_material(client: TestClient, token: str, unidade_medida):
         "descricao": "Chapa 2mm tratada",
         "codigo": "ALU2",
         "unidade_medida_id": unidade_medida["id"],
-        "estoque_atual": 25,
-        "preco_unitario": 20.5
+
     }
 
     response = client.put(f"/materiais/{material['id']}", json=update_payload, headers=headers)
@@ -101,7 +99,6 @@ def test_atualizar_material(client: TestClient, token: str, unidade_medida):
     assert response.status_code == 200
     data = response.json()
     assert data["nome"] == "Alumínio Atualizado"
-    assert data["preco_unitario"] == 20.5
 
 
 def test_deletar_material(client: TestClient, token: str, unidade_medida):

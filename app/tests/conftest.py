@@ -38,8 +38,8 @@ def client(db_session):
     yield TestClient(app)
     app.dependency_overrides.clear()
     
-@pytest.fixture(scope="function")
-def unidade_criada(client):
-    response = client.post("/unidades_medida/", json={"nome": "UN"})
-    assert response.status_code == 200 or response.status_code == 201
-    return response.json()
+# @pytest.fixture(scope="function")
+# def unidade_criada(client):
+#     response = client.post("/unidades_medida/", json={"nome": "UN"})
+#     assert response.status_code == 200 or response.status_code == 201
+#     return response.json()

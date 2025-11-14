@@ -1,14 +1,21 @@
-from pydantic import BaseModel, EmailStr, Field
+# app/schemas.py
+
 from datetime import datetime
-from typing import Optional, List
+from typing import List, Optional
+from pydantic import BaseModel, Field, EmailStr
+from enum import Enum
+
+# ========================
+# USER
+# ========================
 
 class UserBase(BaseModel):
-    nome: str
+    name: str
     email: EmailStr
 
 
 class UserCreate(UserBase):
-    senha: str
+    password: str
 
 
 class UserResponse(UserBase):
@@ -18,40 +25,67 @@ class UserResponse(UserBase):
         orm_mode = True
 
 
-# Esquema para login
+# ========================
+# AUTHENTICATION
+# ========================
+
 class LoginRequest(BaseModel):
     email: EmailStr
-    senha: str
+    password: str
+
+
+class UpdatePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+    repeat_new_password: str
 
 
 class Token(BaseModel):
     access_token: str
     token_type: str
 
-class UnidadeMedidaBase(BaseModel):
-    nome: str = Field(..., example="Quilograma")
-    sigla: str = Field(..., example="kg")
 
-class UnidadeMedidaCreate(UnidadeMedidaBase):
+# ========================
+# ENUMS
+# ========================
+
+class ProductionOrderStatus(str, Enum):
+    planned = "planned"
+    in_production = "in_production"
+    finished = "finished"
+    canceled = "canceled"
+
+
+# ========================
+# UNIT OF MEASUREMENT
+# ========================
+
+class UnitOfMeasureBase(BaseModel):
+    name: str
+    abbreviation: str
+
+
+class UnitOfMeasureCreate(UnitOfMeasureBase):
     pass
 
 
-class UnidadeMedidaResponse(UnidadeMedidaBase):
+class UnitOfMeasureResponse(UnitOfMeasureBase):
     id: int
 
     class Config:
         orm_mode = True
 
-# -------------------------
-# Material Schemas
-# -------------------------
+
+# ========================
+# MATERIALS
+# ========================
+
 class MaterialBase(BaseModel):
-    nome: str = Field(..., example="Aço Inoxidável 304")
-    descricao: Optional[str] = Field(None, example="Chapa de aço inoxidável")
-    codigo: str = Field(..., example="MAT-001")
-    estoque_atual: float = Field(0, example=125.5)
-    preco_unitario: float = Field(..., example=32.75)
-    unidade_medida_id: int = Field(..., example=1)  # FK para UnidadeMedida
+    name: str
+    description: str
+    code: str
+    unit_of_measure_id: int
+    unit_cost: Optional[float] = None
 
 
 class MaterialCreate(MaterialBase):
@@ -59,34 +93,35 @@ class MaterialCreate(MaterialBase):
 
 
 class MaterialUpdate(BaseModel):
-    nome: Optional[str]
-    descricao: Optional[str]
-    estoque_atual: Optional[float]
-    preco_unitario: Optional[float]
-    unidade_medida_id: Optional[int]
+    name: Optional[str] = None
+    description: Optional[str] = None
+    code: Optional[str] = None
+    unit_of_measure_id: Optional[int] = None
+    unit_cost: Optional[float] = None
 
 
 class MaterialResponse(MaterialBase):
     id: int
-    data_cadastro: datetime
-    unidade_medida: UnidadeMedidaResponse  # inclui os dados da unidade no retorno
+    unit_of_measure: Optional[UnitOfMeasureResponse] = None
 
     class Config:
         orm_mode = True
 
+
 # ===============================
-# Centro de Trabalho
+# WORK CENTER
 # ===============================
-class CentroTrabalhoBase(BaseModel):
-    nome: str
-    descricao: Optional[str] = None
+
+class WorkCenterBase(BaseModel):
+    name: str
+    description: Optional[str] = None
 
 
-class CentroTrabalhoCreate(CentroTrabalhoBase):
+class WorkCenterCreate(WorkCenterBase):
     pass
 
 
-class CentroTrabalhoResponse(CentroTrabalhoBase):
+class WorkCenterResponse(WorkCenterBase):
     id: int
 
     class Config:
@@ -94,53 +129,277 @@ class CentroTrabalhoResponse(CentroTrabalhoBase):
 
 
 # ===============================
-# Máquina
+# MACHINE
 # ===============================
-class MaquinaBase(BaseModel):
-    nome: str
-    codigo: str
-    descricao: Optional[str] = None
-    centro_trabalho_id: int
 
-class MaquinaCreate(MaquinaBase):
+class MachineBase(BaseModel):
+    name: str
+    code: str
+    description: Optional[str] = None
+    work_center_id: int
+
+
+class MachineCreate(MachineBase):
     pass
 
-class MaquinaUpdate(BaseModel):
-    nome: Optional[str] = None
-    descricao: Optional[str] = None
-    centro_trabalho_id: Optional[int] = None
 
-class MaquinaResponse(MaquinaBase):
+class MachineUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    work_center_id: Optional[int] = None
+
+
+class MachineResponse(MachineBase):
     id: int
-    centro_trabalho: Optional[CentroTrabalhoResponse]
+    work_center: Optional[WorkCenterResponse]
 
     class Config:
         orm_mode = True
 
+
 # ===============================
-# Operações
+# OPERATIONS
 # ===============================
-class OperacaoBase(BaseModel):
-    nome: str
-    descricao: Optional[str] = None
-    centros_trabalho_ids: List[int]  # IDs dos centros de trabalho associados
+
+class OperationBase(BaseModel):
+    name: str
+    description: Optional[str] = None
 
 
-class OperacaoCreate(OperacaoBase):
+class OperationCreate(OperationBase):
     pass
 
 
-class OperacaoUpdate(BaseModel):
-    nome: Optional[str] = None
-    descricao: Optional[str] = None
-    centros_trabalho_ids: Optional[List[int]] = None
+class OperationUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
 
 
-class OperacaoResponse(BaseModel):
+class OperationResponse(BaseModel):
     id: int
-    nome: str
-    descricao: Optional[str]
-    centros_trabalho: List[CentroTrabalhoResponse]  # retorna os centros vinculados
+    name: str
+    description: Optional[str]
+
+    class Config:
+        orm_mode = True
+
+
+# ========================
+# PRODUCTS
+# ========================
+
+class ProductBase(BaseModel):
+    name: str
+    code: str
+    description: Optional[str] = None
+    unit_cost: Optional[float] = None
+    unit_price: Optional[float] = None
+    net_weight: Optional[float] = None
+    gross_weight: Optional[float] = None
+    parent_product_id: Optional[int] = Field(default=None, description="If this product is a subproduct")
+
+
+class ProductCreate(ProductBase):
+    pass
+
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    description: Optional[str] = None
+    unit_cost: Optional[float] = None
+    unit_price: Optional[float] = None
+    net_weight: Optional[float] = None
+    gross_weight: Optional[float] = None
+    parent_product_id: Optional[int] = None
+
+
+class ProductResponse(ProductBase):
+    id: int
+    parent_product_id: Optional[int] = None
+    subproducts: List["ProductResponse"] = []
+
+    class Config:
+        orm_mode = True
+
+
+# ========================
+# RELATIONSHIP ORDER-MATERIAL
+# ========================
+
+class OrderMaterialBase(BaseModel):
+    used_quantity: float
+
+
+class OrderMaterialCreate(OrderMaterialBase):
+    material_id: int
+
+
+class OrderMaterialResponse(OrderMaterialBase):
+    id: int
+    material_id: int
+
+    class Config:
+        orm_mode = True
+
+
+# ========================
+# PRODUCTION ORDER
+# ========================
+
+class ProductionOrderBase(BaseModel):
+    code: str
+    product_id: int
+    planned_quantity: float
+    status: Optional[ProductionOrderStatus] = ProductionOrderStatus.planned
+    notes: Optional[str] = None
+
+
+class ProductionOrderCreate(ProductionOrderBase):
+    used_materials: Optional[List[OrderMaterialCreate]] = []
+
+
+class ProductionOrderUpdate(BaseModel):
+    planned_quantity: Optional[float] = None
+    status: Optional[ProductionOrderStatus] = None
+    notes: Optional[str] = None
+
+
+class ProductionOrderResponse(ProductionOrderBase):
+    id: int
+    created_at: datetime
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    product: Optional[ProductResponse] = None
+    used_materials: Optional[List[OrderMaterialResponse]] = None
+
+    class Config:
+        orm_mode = True
+
+
+# ========================
+# RELATIONSHIP PRODUCT-MATERIAL
+# ========================
+
+class MaterialSummary(BaseModel):
+    id: int
+    name: str
+    code: str
+
+    class Config:
+        orm_mode = True
+
+
+class ProductMaterialBase(BaseModel):
+    material_id: int
+    quantity: float
+
+
+class ProductMaterialCreate(ProductMaterialBase):
+    material_id: int
+
+
+class ProductMaterialResponse(BaseModel):
+    id: int
+    product_id: int
+    material_id: int
+    quantity: float
+    material: MaterialSummary
+
+    class Config:
+        orm_mode = True
+
+
+# ========================
+# SALES ORDER
+# ========================
+
+class SalesOrderItemBase(BaseModel):
+    product_id: int
+    quantity: float
+
+
+class SalesOrderItemCreate(SalesOrderItemBase):
+    pass
+
+
+class SalesOrderItemResponse(SalesOrderItemBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+
+class SalesOrderBase(BaseModel):
+    order_number: str
+    customer: str
+    notes: Optional[str] = None
+
+
+class SalesOrderCreate(SalesOrderBase):
+    items: List[SalesOrderItemCreate]
+
+
+class SalesOrderResponse(SalesOrderBase):
+    id: int
+    order_date: datetime
+    items: List[SalesOrderItemResponse] = []
+
+    class Config:
+        orm_mode = True
+
+
+# ========================
+# ROUTING OPERATION
+# ========================
+
+class RoutingOperationBase(BaseModel):
+    operation_id: int
+    work_center_id: int
+    machine_id: Optional[int] = None
+    sequence: int
+    standard_time_min: Optional[int] = None
+    notes: Optional[str] = None
+
+
+class RoutingOperationCreate(RoutingOperationBase):
+    pass
+
+
+class RoutingOperationResponse(RoutingOperationBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+# ========================
+# PRODUCTION ROUTING
+# ========================
+
+class ProductionRoutingBase(BaseModel):
+    product_id: int
+    code: Optional[str] = None
+    description: Optional[str] = None
+    active: Optional[bool] = True
+
+
+class ProductionRoutingCreate(ProductionRoutingBase):
+    operations: List[RoutingOperationCreate] = []
+
+
+class ProductionRoutingUpdate(BaseModel):
+    code: Optional[str] = None
+    description: Optional[str] = None
+    active: Optional[bool] = None
+    operations: Optional[List[RoutingOperationCreate]] = None
+
+
+class ProductionRoutingResponse(ProductionRoutingBase):
+    id: int
+    created_at: datetime
+    operations: List[RoutingOperationResponse] = []
 
     class Config:
         orm_mode = True

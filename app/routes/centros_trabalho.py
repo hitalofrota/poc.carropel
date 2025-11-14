@@ -5,58 +5,58 @@ from app.database import get_db
 from app.auth import get_current_user
 
 router = APIRouter(
-    prefix="/centros_trabalho",
-    tags=["Centros de Trabalho"],
+    prefix="/work_centers",
+    tags=["Work Centers"],
     dependencies=[Depends(get_current_user)]
 )
 
 
-@router.post("/", response_model=schemas.CentroTrabalhoResponse)
-def criar_centro_trabalho(centro: schemas.CentroTrabalhoCreate, db: Session = Depends(get_db)):
-    existente = db.query(models.CentroTrabalho).filter(models.CentroTrabalho.nome == centro.nome).first()
-    if existente:
-        raise HTTPException(status_code=400, detail="Centro de trabalho já cadastrado")
+@router.post("/", response_model=schemas.WorkCenterResponse)
+def create_work_center(center: schemas.WorkCenterCreate, db: Session = Depends(get_db)):
+    existing_center = db.query(models.WorkCenter).filter(models.WorkCenter.name == center.name).first()
+    if existing_center:
+        raise HTTPException(status_code=400, detail="Work center already registered")
 
-    novo_centro = models.CentroTrabalho(**centro.dict())
-    db.add(novo_centro)
+    new_center = models.WorkCenter(**center.dict())
+    db.add(new_center)
     db.commit()
-    db.refresh(novo_centro)
-    return novo_centro
+    db.refresh(new_center)
+    return new_center
 
 
-@router.get("/", response_model=list[schemas.CentroTrabalhoResponse])
-def listar_centros_trabalho(db: Session = Depends(get_db)):
-    return db.query(models.CentroTrabalho).all()
+@router.get("/", response_model=list[schemas.WorkCenterResponse])
+def list_work_centers(db: Session = Depends(get_db)):
+    return db.query(models.WorkCenter).all()
 
 
-@router.get("/{centro_id}", response_model=schemas.CentroTrabalhoResponse)
-def obter_centro_trabalho(centro_id: int, db: Session = Depends(get_db)):
-    centro = db.query(models.CentroTrabalho).filter(models.CentroTrabalho.id == centro_id).first()
-    if not centro:
-        raise HTTPException(status_code=404, detail="Centro de trabalho não encontrado")
-    return centro
+@router.get("/{center_id}", response_model=schemas.WorkCenterResponse)
+def get_work_center(center_id: int, db: Session = Depends(get_db)):
+    center = db.query(models.WorkCenter).filter(models.WorkCenter.id == center_id).first()
+    if not center:
+        raise HTTPException(status_code=404, detail="Work center not found")
+    return center
 
 
-@router.put("/{centro_id}", response_model=schemas.CentroTrabalhoResponse)
-def atualizar_centro_trabalho(centro_id: int, centro_update: schemas.CentroTrabalhoCreate, db: Session = Depends(get_db)):
-    centro = db.query(models.CentroTrabalho).filter(models.CentroTrabalho.id == centro_id).first()
-    if not centro:
-        raise HTTPException(status_code=404, detail="Centro de trabalho não encontrado")
+@router.put("/{center_id}", response_model=schemas.WorkCenterResponse)
+def update_work_center(center_id: int, center_update: schemas.WorkCenterCreate, db: Session = Depends(get_db)):
+    center = db.query(models.WorkCenter).filter(models.WorkCenter.id == center_id).first()
+    if not center:
+        raise HTTPException(status_code=404, detail="Work center not found")
 
-    for key, value in centro_update.dict(exclude_unset=True).items():
-        setattr(centro, key, value)
+    for key, value in center_update.dict(exclude_unset=True).items():
+        setattr(center, key, value)
 
     db.commit()
-    db.refresh(centro)
-    return centro
+    db.refresh(center)
+    return center
 
 
-@router.delete("/{centro_id}")
-def deletar_centro_trabalho(centro_id: int, db: Session = Depends(get_db)):
-    centro = db.query(models.CentroTrabalho).filter(models.CentroTrabalho.id == centro_id).first()
-    if not centro:
-        raise HTTPException(status_code=404, detail="Centro de trabalho não encontrado")
+@router.delete("/{center_id}")
+def delete_work_center(center_id: int, db: Session = Depends(get_db)):
+    center = db.query(models.WorkCenter).filter(models.WorkCenter.id == center_id).first()
+    if not center:
+        raise HTTPException(status_code=404, detail="Work center not found")
 
-    db.delete(centro)
+    db.delete(center)
     db.commit()
-    return {"detail": "Centro de trabalho deletado com sucesso"}
+    return {"detail": "Work center successfully deleted"}

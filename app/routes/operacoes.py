@@ -5,72 +5,65 @@ from app.database import get_db
 from app.auth import get_current_user
 
 router = APIRouter(
-    prefix="/operacoes",
-    tags=["Operações"],
+    prefix="/operations",
+    tags=["Operations"],
     dependencies=[Depends(get_current_user)]
 )
 
+# --- CREATE OPERATION ---
+@router.post("/", response_model=schemas.OperationResponse)
+def create_operation(operation: schemas.OperationCreate, db: Session = Depends(get_db)):
+    existing_op = db.query(models.Operation).filter(models.Operation.name == operation.name).first()
+    if existing_op:
+        raise HTTPException(status_code=400, detail="Operation already exists")
 
-@router.post("/", response_model=schemas.OperacaoResponse)
-def criar_operacao(operacao: schemas.OperacaoCreate, db: Session = Depends(get_db)):
-    # Verifica duplicidade
-    if db.query(models.Operacao).filter(models.Operacao.nome == operacao.nome).first():
-        raise HTTPException(status_code=400, detail="Operação já cadastrada")
-
-    # Verifica centros de trabalho existentes
-    centros = db.query(models.CentroTrabalho).filter(models.CentroTrabalho.id.in_(operacao.centros_trabalho_ids)).all()
-    if len(centros) != len(operacao.centros_trabalho_ids):
-        raise HTTPException(status_code=400, detail="Um ou mais centros de trabalho não encontrados")
-
-    nova_operacao = models.Operacao(
-        nome=operacao.nome,
-        descricao=operacao.descricao,
-        centros_trabalho=centros
+    new_op = models.Operation(
+        name=operation.name,
+        description=operation.description
     )
-    db.add(nova_operacao)
+    db.add(new_op)
     db.commit()
-    db.refresh(nova_operacao)
-    return nova_operacao
+    db.refresh(new_op)
+    return new_op
 
 
-@router.get("/", response_model=list[schemas.OperacaoResponse])
-def listar_operacoes(db: Session = Depends(get_db)):
-    return db.query(models.Operacao).all()
+# --- LIST ALL OPERATIONS ---
+@router.get("/", response_model=list[schemas.OperationResponse])
+def list_operations(db: Session = Depends(get_db)):
+    return db.query(models.Operation).all()
 
 
-@router.get("/{operacao_id}", response_model=schemas.OperacaoResponse)
-def obter_operacao(operacao_id: int, db: Session = Depends(get_db)):
-    operacao = db.query(models.Operacao).filter(models.Operacao.id == operacao_id).first()
-    if not operacao:
-        raise HTTPException(status_code=404, detail="Operação não encontrada")
-    return operacao
+# --- GET OPERATION BY ID ---
+@router.get("/{operation_id}", response_model=schemas.OperationResponse)
+def get_operation(operation_id: int, db: Session = Depends(get_db)):
+    operation = db.query(models.Operation).filter(models.Operation.id == operation_id).first()
+    if not operation:
+        raise HTTPException(status_code=404, detail="Operation not found")
+    return operation
 
 
-@router.put("/{operacao_id}", response_model=schemas.OperacaoResponse)
-def atualizar_operacao(operacao_id: int, operacao_update: schemas.OperacaoUpdate, db: Session = Depends(get_db)):
-    operacao = db.query(models.Operacao).filter(models.Operacao.id == operacao_id).first()
-    if not operacao:
-        raise HTTPException(status_code=404, detail="Operação não encontrada")
+# --- UPDATE OPERATION ---
+@router.put("/{operation_id}", response_model=schemas.OperationResponse)
+def update_operation(operation_id: int, operation_update: schemas.OperationUpdate, db: Session = Depends(get_db)):
+    operation = db.query(models.Operation).filter(models.Operation.id == operation_id).first()
+    if not operation:
+        raise HTTPException(status_code=404, detail="Operation not found")
 
-    if operacao_update.nome:
-        operacao.nome = operacao_update.nome
-    if operacao_update.descricao:
-        operacao.descricao = operacao_update.descricao
-    if operacao_update.centros_trabalho_ids is not None:
-        centros = db.query(models.CentroTrabalho).filter(models.CentroTrabalho.id.in_(operacao_update.centros_trabalho_ids)).all()
-        operacao.centros_trabalho = centros
+    for key, value in operation_update.dict(exclude_unset=True).items():
+        setattr(operation, key, value)
 
     db.commit()
-    db.refresh(operacao)
-    return operacao
+    db.refresh(operation)
+    return operation
 
 
-@router.delete("/{operacao_id}")
-def deletar_operacao(operacao_id: int, db: Session = Depends(get_db)):
-    operacao = db.query(models.Operacao).filter(models.Operacao.id == operacao_id).first()
-    if not operacao:
-        raise HTTPException(status_code=404, detail="Operação não encontrada")
+# --- DELETE OPERATION ---
+@router.delete("/{operation_id}")
+def delete_operation(operation_id: int, db: Session = Depends(get_db)):
+    operation = db.query(models.Operation).filter(models.Operation.id == operation_id).first()
+    if not operation:
+        raise HTTPException(status_code=404, detail="Operation not found")
 
-    db.delete(operacao)
+    db.delete(operation)
     db.commit()
-    return {"detail": "Operação deletada com sucesso"}
+    return {"detail": "Operation successfully deleted"}
