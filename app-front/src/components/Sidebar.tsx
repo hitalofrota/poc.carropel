@@ -1,6 +1,7 @@
 import { Link, NavLink } from "react-router-dom";
 import carropelLogo from "@/assets/carropel-logo.png";
 import {
+  Users,
   LayoutDashboard,
   ShoppingCart,
   Factory,
@@ -8,18 +9,18 @@ import {
   LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils"; // Assumindo que você tem o helper 'cn' do shadcn
+import { cn } from "@/lib/utils"; 
 
-// Componente helper para os links de navegação
+
 const NavItem = ({ to, icon: Icon, children }: { to: string, icon: React.ElementType, children: React.ReactNode }) => {
   return (
     <NavLink
       to={to}
-      end // 'end' garante que só a rota exata seja marcada como ativa
+      end
       className={({ isActive }) =>
         cn(
           "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-          isActive && "bg-muted text-primary font-medium" // Estilo da rota ativa
+          isActive && "bg-muted text-primary font-medium" 
         )
       }
     >
@@ -31,12 +32,9 @@ const NavItem = ({ to, icon: Icon, children }: { to: string, icon: React.Element
 
 const Sidebar = () => {
   return (
-    // 'hidden md:block' esconde a sidebar em telas pequenas
     <aside className="hidden w-64 min-h-screen flex-col border-r bg-card md:flex">
       
-      {/* 1. Logo */}
       <div className="flex h-16 items-center border-b px-6">
-        {/* Link para a home (que vai redirecionar para /orders) */}
         <Link to="/" className="flex items-center gap-2">
           <img 
             src={carropelLogo} 
@@ -46,19 +44,17 @@ const Sidebar = () => {
         </Link>
       </div>
 
-      {/* 2. Navegação Principal */}
       <div className="flex-1 overflow-y-auto">
         <nav className="grid items-start gap-1 px-4 py-4 text-sm">
-          {/* Como sua home "/" redireciona para /orders, 
-            podemos linkar o "Dashboard" direto para /orders
-          */}
-          <NavItem to="/orders" icon={LayoutDashboard}>
+          <NavItem to="/users" icon={Users}>
+            Gerenciamento Usuário
+          </NavItem>
+          <NavItem to="/dashboard" icon={LayoutDashboard}>
             Dashboard
           </NavItem>
           <NavItem to="/orders" icon={ShoppingCart}>
             Pedidos (Vendas)
           </NavItem>
-          {/* Link para /prodution (como no seu App.tsx) */}
           <NavItem to="/prodution" icon={Factory}>
             Ordens de Produção
           </NavItem>
