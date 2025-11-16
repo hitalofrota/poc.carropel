@@ -5,7 +5,11 @@ from app.database import Base
 from datetime import datetime
 import enum
 
-# --- USER ---
+class UserRole(str, enum.Enum):
+    admin = "admin"
+    manager = "manager"
+    viewer = "viewer"
+
 class User(Base):
     __tablename__ = "users"
 
@@ -13,8 +17,8 @@ class User(Base):
     name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
+    role = Column(Enum(UserRole), default=UserRole.viewer, nullable=False) 
 
-# --- UNIT OF MEASURE ---
 class UnitOfMeasure(Base):
     __tablename__ = "units_of_measure"
 
@@ -24,7 +28,6 @@ class UnitOfMeasure(Base):
 
     materials = relationship("Material", back_populates="unit_of_measure")
 
-# --- WORK CENTER ---
 class WorkCenter(Base):
     __tablename__ = "work_centers"
 
@@ -39,7 +42,6 @@ class WorkCenter(Base):
         cascade="all, delete-orphan"
     )
 
-# --- MACHINE ---
 class Machine(Base):
     __tablename__ = "machines"
 
@@ -53,7 +55,6 @@ class Machine(Base):
     # Relationship with work center (N:1)
     work_center = relationship("WorkCenter", back_populates="machines")
 
-# --- OPERATION ---
 class Operation(Base):
     __tablename__ = "operations"
 
@@ -61,7 +62,6 @@ class Operation(Base):
     name = Column(String(100), nullable=False, unique=True)
     description = Column(Text, nullable=True)
 
-# --- ENUMS ---
 class ProductionOrderStatus(enum.Enum):
     planned = "planned"
     in_production = "in_production"
@@ -74,7 +74,6 @@ class SalesOrderStatus(enum.Enum):
     finished = "finished"
     cancelled = "cancelled"
 
-# --- PRODUCT ---
 class Product(Base):
     __tablename__ = "products"
 
@@ -114,7 +113,6 @@ class Product(Base):
         passive_deletes=True
     )
 
-# --- MATERIAL ---
 class Material(Base):
     __tablename__ = "materials"
 
@@ -139,7 +137,6 @@ class Material(Base):
         passive_deletes=True
     )
 
-# --- PRODUCTION ORDER ---
 class ProductionOrder(Base):
     __tablename__ = "production_orders"
 

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, allow_roles
 
 router = APIRouter(
     prefix="/products",
@@ -11,7 +11,7 @@ router = APIRouter(
 )
 
 # ➕ Add material to a product
-@router.post("/{product_id}/materials", response_model=schemas.ProductMaterialResponse)
+@router.post("/{product_id}/materials", response_model=schemas.ProductMaterialResponse, dependencies=[Depends(allow_roles("manager","admin"))] )
 def add_material_to_product(
     product_id: int,
     material_data: schemas.ProductMaterialCreate,
@@ -59,7 +59,7 @@ def add_material_to_product(
 
 
 # 🔍 List materials of a product
-@router.get("/{product_id}/materials", response_model=list[schemas.ProductMaterialResponse])
+@router.get("/{product_id}/materials", response_model=list[schemas.ProductMaterialResponse], dependencies=[Depends(allow_roles("manager","admin","viewer"))] )
 def list_product_materials(product_id: int, db: Session = Depends(get_db)):
     product = db.query(models.Product).filter(models.Product.id == product_id).first()
     if not product:

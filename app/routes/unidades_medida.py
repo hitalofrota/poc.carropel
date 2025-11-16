@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, allow_roles
+
 
 router = APIRouter(
     prefix="/units_of_measure",
@@ -10,7 +11,8 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)]
 )
 
-@router.post("/", response_model=schemas.UnitOfMeasureResponse)
+
+@router.post("/", response_model=schemas.UnitOfMeasureResponse, dependencies=[Depends(allow_roles("manager","admin"))] )
 def create_unit(unit: schemas.UnitOfMeasureCreate, db: Session = Depends(get_db)):
     existing_unit = db.query(models.UnitOfMeasure).filter(
         (models.UnitOfMeasure.name == unit.name) |
@@ -26,18 +28,18 @@ def create_unit(unit: schemas.UnitOfMeasureCreate, db: Session = Depends(get_db)
     db.refresh(new_unit)
     return new_unit
 
-@router.get("/", response_model=list[schemas.UnitOfMeasureResponse])
+@router.get("/", response_model=list[schemas.UnitOfMeasureResponse], dependencies=[Depends(allow_roles("manager","admin","viewer"))] )
 def list_units(db: Session = Depends(get_db)):
     return db.query(models.UnitOfMeasure).all()
 
-@router.get("/{unit_id}", response_model=schemas.UnitOfMeasureResponse)
+@router.get("/{unit_id}", response_model=schemas.UnitOfMeasureResponse, dependencies=[Depends(allow_roles("manager","admin","viewer"))] )
 def get_unit(unit_id: int, db: Session = Depends(get_db)):
     unit = db.query(models.UnitOfMeasure).filter(models.UnitOfMeasure.id == unit_id).first()
     if not unit:
         raise HTTPException(status_code=404, detail="Unit of measure not found")
     return unit
 
-@router.put("/{unit_id}", response_model=schemas.UnitOfMeasureResponse)
+@router.put("/{unit_id}", response_model=schemas.UnitOfMeasureResponse, dependencies=[Depends(allow_roles("manager","admin"))] )
 def update_unit(unit_id: int, unit_update: schemas.UnitOfMeasureCreate, db: Session = Depends(get_db)):
     unit = db.query(models.UnitOfMeasure).filter(models.UnitOfMeasure.id == unit_id).first()
     if not unit:
@@ -50,7 +52,7 @@ def update_unit(unit_id: int, unit_update: schemas.UnitOfMeasureCreate, db: Sess
     db.refresh(unit)
     return unit
 
-@router.delete("/{unit_id}")
+@router.delete("/{unit_id}", dependencies=[Depends(allow_roles("manager","admin"))] )
 def delete_unit(unit_id: int, db: Session = Depends(get_db)):
     unit = db.query(models.UnitOfMeasure).filter(models.UnitOfMeasure.id == unit_id).first()
     if not unit:

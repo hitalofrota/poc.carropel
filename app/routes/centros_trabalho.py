@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, allow_roles
 
 router = APIRouter(
     prefix="/work_centers",
@@ -11,7 +11,7 @@ router = APIRouter(
 )
 
 
-@router.post("/", response_model=schemas.WorkCenterResponse)
+@router.post("/", response_model=schemas.WorkCenterResponse, dependencies=[Depends(allow_roles("manager","admin"))] )
 def create_work_center(center: schemas.WorkCenterCreate, db: Session = Depends(get_db)):
     existing_center = db.query(models.WorkCenter).filter(models.WorkCenter.name == center.name).first()
     if existing_center:
@@ -24,12 +24,12 @@ def create_work_center(center: schemas.WorkCenterCreate, db: Session = Depends(g
     return new_center
 
 
-@router.get("/", response_model=list[schemas.WorkCenterResponse])
+@router.get("/", response_model=list[schemas.WorkCenterResponse], dependencies=[Depends(allow_roles("manager","admin","viewer"))])
 def list_work_centers(db: Session = Depends(get_db)):
     return db.query(models.WorkCenter).all()
 
 
-@router.get("/{center_id}", response_model=schemas.WorkCenterResponse)
+@router.get("/{center_id}", response_model=schemas.WorkCenterResponse, dependencies=[Depends(allow_roles("manager","admin","viewer"))])
 def get_work_center(center_id: int, db: Session = Depends(get_db)):
     center = db.query(models.WorkCenter).filter(models.WorkCenter.id == center_id).first()
     if not center:
@@ -37,7 +37,7 @@ def get_work_center(center_id: int, db: Session = Depends(get_db)):
     return center
 
 
-@router.put("/{center_id}", response_model=schemas.WorkCenterResponse)
+@router.put("/{center_id}", response_model=schemas.WorkCenterResponse, dependencies=[Depends(allow_roles("manager","admin"))])
 def update_work_center(center_id: int, center_update: schemas.WorkCenterCreate, db: Session = Depends(get_db)):
     center = db.query(models.WorkCenter).filter(models.WorkCenter.id == center_id).first()
     if not center:
@@ -51,7 +51,7 @@ def update_work_center(center_id: int, center_update: schemas.WorkCenterCreate, 
     return center
 
 
-@router.delete("/{center_id}")
+@router.delete("/{center_id}", dependencies=[Depends(allow_roles("manager","admin"))])
 def delete_work_center(center_id: int, db: Session = Depends(get_db)):
     center = db.query(models.WorkCenter).filter(models.WorkCenter.id == center_id).first()
     if not center:

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, allow_roles
 
 router = APIRouter(
     prefix="/products",
@@ -12,7 +12,7 @@ router = APIRouter(
 )
 
 # ➕ Add subproduct (child product)
-@router.post("/{parent_product_id}/subproducts", response_model=schemas.ProductResponse)
+@router.post("/{parent_product_id}/subproducts", response_model=schemas.ProductResponse, dependencies=[Depends(allow_roles("manager","admin"))] )
 def add_subproduct(
     parent_product_id: int,
     subproduct_data: schemas.ProductCreate,
@@ -38,7 +38,7 @@ def add_subproduct(
     return new_subproduct
 
 
-@router.post("/{parent_product_id}/subproducts/{subproduct_id}", response_model=schemas.ProductResponse)
+@router.post("/{parent_product_id}/subproducts/{subproduct_id}", response_model=schemas.ProductResponse, dependencies=[Depends(allow_roles("manager","admin"))] )
 def link_existing_subproduct(
     parent_product_id: int,
     subproduct_id: int,
@@ -67,7 +67,7 @@ def link_existing_subproduct(
     return subproduct
 
 
-@router.get("/{parent_product_id}/subproducts", response_model=list[schemas.ProductResponse])
+@router.get("/{parent_product_id}/subproducts", response_model=list[schemas.ProductResponse], dependencies=[Depends(allow_roles("manager","admin","viewer"))] )
 def list_subproducts(parent_product_id: int, db: Session = Depends(get_db)):
     parent_product = db.query(models.Product).filter(models.Product.id == parent_product_id).first()
     if not parent_product:

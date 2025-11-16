@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, allow_roles
 from datetime import datetime
 
 router = APIRouter(
@@ -11,7 +11,7 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)]
 )
 
-@router.post("/", response_model=schemas.ProductionOrderResponse)
+@router.post("/", response_model=schemas.ProductionOrderResponse, dependencies=[Depends(allow_roles("manager","admin"))])
 def create_order(order: schemas.ProductionOrderCreate, db: Session = Depends(get_db)):
     existing_code = db.query(models.ProductionOrder).filter(models.ProductionOrder.code == order.code).first()
     if existing_code:
@@ -36,12 +36,12 @@ def create_order(order: schemas.ProductionOrderCreate, db: Session = Depends(get
     return new_order
 
 
-@router.get("/", response_model=list[schemas.ProductionOrderResponse])
+@router.get("/", response_model=list[schemas.ProductionOrderResponse], dependencies=[Depends(allow_roles("manager","admin","viewer"))])
 def list_orders(db: Session = Depends(get_db)):
     return db.query(models.ProductionOrder).all()
 
 
-@router.get("/{order_id}", response_model=schemas.ProductionOrderResponse)
+@router.get("/{order_id}", response_model=schemas.ProductionOrderResponse, dependencies=[Depends(allow_roles("manager","admin","viewer"))])
 def get_order(order_id: int, db: Session = Depends(get_db)):
     order = db.query(models.ProductionOrder).filter(models.ProductionOrder.id == order_id).first()
     if not order:
@@ -49,7 +49,7 @@ def get_order(order_id: int, db: Session = Depends(get_db)):
     return order
 
 
-@router.put("/{order_id}", response_model=schemas.ProductionOrderResponse)
+@router.put("/{order_id}", response_model=schemas.ProductionOrderResponse, dependencies=[Depends(allow_roles("manager","admin"))])
 def update_order(order_id: int, order_update: schemas.ProductionOrderUpdate, db: Session = Depends(get_db)):
     order = db.query(models.ProductionOrder).filter(models.ProductionOrder.id == order_id).first()
     if not order:
@@ -63,7 +63,7 @@ def update_order(order_id: int, order_update: schemas.ProductionOrderUpdate, db:
     return order
 
 
-@router.delete("/{order_id}")
+@router.delete("/{order_id}", dependencies=[Depends(allow_roles("manager","admin"))])
 def delete_order(order_id: int, db: Session = Depends(get_db)):
     order = db.query(models.ProductionOrder).filter(models.ProductionOrder.id == order_id).first()
     if not order:

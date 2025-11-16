@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, allow_roles
 
 router = APIRouter(
     prefix="/materials",
@@ -11,7 +11,7 @@ router = APIRouter(
 )
 
 
-@router.post("/", response_model=schemas.MaterialResponse)
+@router.post("/", response_model=schemas.MaterialResponse, dependencies=[Depends(allow_roles("manager","admin"))] )
 def create_material(material: schemas.MaterialCreate, db: Session = Depends(get_db)):
     unit = db.query(models.UnitOfMeasure).filter(models.UnitOfMeasure.id == material.unit_of_measure_id).first()
     if not unit:
@@ -28,12 +28,12 @@ def create_material(material: schemas.MaterialCreate, db: Session = Depends(get_
     return new_material
 
 
-@router.get("/", response_model=list[schemas.MaterialResponse])
+@router.get("/", response_model=list[schemas.MaterialResponse], dependencies=[Depends(allow_roles("manager","admin","viewer"))] )
 def list_materials(db: Session = Depends(get_db)):
     return db.query(models.Material).all()
 
 
-@router.get("/{material_id}", response_model=schemas.MaterialResponse)
+@router.get("/{material_id}", response_model=schemas.MaterialResponse, dependencies=[Depends(allow_roles("manager","admin","viewer"))] )
 def get_material(material_id: int, db: Session = Depends(get_db)):
     material = db.query(models.Material).filter(models.Material.id == material_id).first()
     if not material:
@@ -41,7 +41,7 @@ def get_material(material_id: int, db: Session = Depends(get_db)):
     return material
 
 
-@router.put("/{material_id}", response_model=schemas.MaterialResponse)
+@router.put("/{material_id}", response_model=schemas.MaterialResponse, dependencies=[Depends(allow_roles("manager","admin"))] )
 def update_material(material_id: int, material_update: schemas.MaterialUpdate, db: Session = Depends(get_db)):
     material = db.query(models.Material).filter(models.Material.id == material_id).first()
     if not material:
@@ -55,7 +55,7 @@ def update_material(material_id: int, material_update: schemas.MaterialUpdate, d
     return material
 
 
-@router.delete("/{material_id}")
+@router.delete("/{material_id}", dependencies=[Depends(allow_roles("manager","admin"))] )
 def delete_material(material_id: int, db: Session = Depends(get_db)):
     material = db.query(models.Material).filter(models.Material.id == material_id).first()
     if not material:
