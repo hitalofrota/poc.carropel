@@ -2,26 +2,30 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, allow_roles
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-
-# =======================================
-# GET ALL USERS
-# =======================================
-@router.get("/", response_model=list[schemas.UserResponse])
+@router.get("/", response_model=list[schemas.UserResponse], dependencies=[Depends(allow_roles("manager","admin"))])
 def get_users(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
     return db.query(models.User).all()
 
+@router.get("/{user_id}", response_model=schemas.UserResponse, dependencies=[Depends(allow_roles("manager","admin"))])
+def get_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
 
-# =======================================
-# UPDATE USER ROLE (ADMIN ONLY)
-# =======================================
-@router.put("/{user_id}/role", response_model=schemas.UserResponse)
+    return user
+
+@router.put("/{user_id}/role", response_model=schemas.UserResponse, dependencies=[Depends(allow_roles("admin"))])
 def update_user_role(
     user_id: int,
     data: schemas.UpdateUserRole,
