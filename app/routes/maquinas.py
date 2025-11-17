@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, allow_roles
 
 router = APIRouter(
     prefix="/machines",
@@ -11,7 +11,7 @@ router = APIRouter(
 )
 
 
-@router.post("/", response_model=schemas.MachineResponse)
+@router.post("/", response_model=schemas.MachineResponse, dependencies=[Depends(allow_roles("manager","admin","viewer"))]  )
 def create_machine(machine: schemas.MachineCreate, db: Session = Depends(get_db)):
     work_center = db.query(models.WorkCenter).filter(models.WorkCenter.id == machine.work_center_id).first()
     if not work_center:
@@ -28,12 +28,12 @@ def create_machine(machine: schemas.MachineCreate, db: Session = Depends(get_db)
     return new_machine
 
 
-@router.get("/", response_model=list[schemas.MachineResponse])
+@router.get("/", response_model=list[schemas.MachineResponse], dependencies=[Depends(allow_roles("manager","admin","viewer"))] )
 def list_machines(db: Session = Depends(get_db)):
     return db.query(models.Machine).all()
 
 
-@router.get("/{machine_id}", response_model=schemas.MachineResponse)
+@router.get("/{machine_id}", response_model=schemas.MachineResponse, dependencies=[Depends(allow_roles("manager","admin","viewer"))] )
 def get_machine(machine_id: int, db: Session = Depends(get_db)):
     machine = db.query(models.Machine).filter(models.Machine.id == machine_id).first()
     if not machine:
@@ -41,7 +41,7 @@ def get_machine(machine_id: int, db: Session = Depends(get_db)):
     return machine
 
 
-@router.put("/{machine_id}", response_model=schemas.MachineResponse)
+@router.put("/{machine_id}", response_model=schemas.MachineResponse, dependencies=[Depends(allow_roles("manager","admin"))] )
 def update_machine(machine_id: int, machine_update: schemas.MachineUpdate, db: Session = Depends(get_db)):
     machine = db.query(models.Machine).filter(models.Machine.id == machine_id).first()
     if not machine:
@@ -55,7 +55,7 @@ def update_machine(machine_id: int, machine_update: schemas.MachineUpdate, db: S
     return machine
 
 
-@router.delete("/{machine_id}")
+@router.delete("/{machine_id}", dependencies=[Depends(allow_roles("manager","admin"))] )
 def delete_machine(machine_id: int, db: Session = Depends(get_db)):
     machine = db.query(models.Machine).filter(models.Machine.id == machine_id).first()
     if not machine:

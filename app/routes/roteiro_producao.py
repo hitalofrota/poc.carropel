@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user, allow_roles
 
 router = APIRouter(
     prefix="/production-routes",
@@ -12,7 +12,7 @@ router = APIRouter(
 
 
 # --- CREATE PRODUCTION ROUTE ---
-@router.post("/", response_model=schemas.ProductionRoutingResponse)
+@router.post("/", response_model=schemas.ProductionRoutingResponse, dependencies=[Depends(allow_roles("manager","admin"))] )
 def create_production_route(route: schemas.ProductionRoutingCreate, db: Session = Depends(get_db)):
     product = db.query(models.Product).filter(models.Product.id == route.product_id).first()
     if not product:
@@ -42,13 +42,13 @@ def create_production_route(route: schemas.ProductionRoutingCreate, db: Session 
 
 
 # --- LIST ALL PRODUCTION ROUTES ---
-@router.get("/", response_model=list[schemas.ProductionRoutingResponse])
+@router.get("/", response_model=list[schemas.ProductionRoutingResponse], dependencies=[Depends(allow_roles("manager","admin","viewer"))] )
 def list_production_routes(db: Session = Depends(get_db)):
     return db.query(models.ProductionRoute).all()
 
 
 # --- GET PRODUCTION ROUTE BY ID ---
-@router.get("/{route_id}", response_model=schemas.ProductionRoutingResponse)
+@router.get("/{route_id}", response_model=schemas.ProductionRoutingResponse, dependencies=[Depends(allow_roles("manager","admin","viewer"))] )
 def get_production_route(route_id: int, db: Session = Depends(get_db)):
     route = db.query(models.ProductionRoute).filter(models.ProductionRoute.id == route_id).first()
     if not route:
@@ -57,7 +57,7 @@ def get_production_route(route_id: int, db: Session = Depends(get_db)):
 
 
 # --- UPDATE PRODUCTION ROUTE ---
-@router.put("/{route_id}", response_model=schemas.ProductionRoutingResponse)
+@router.put("/{route_id}", response_model=schemas.ProductionRoutingResponse, dependencies=[Depends(allow_roles("manager","admin"))] )
 def update_production_route(route_id: int, route_update: schemas.ProductionRoutingUpdate, db: Session = Depends(get_db)):
     route = db.query(models.ProductionRoute).filter(models.ProductionRoute.id == route_id).first()
     if not route:
@@ -79,7 +79,7 @@ def update_production_route(route_id: int, route_update: schemas.ProductionRouti
 
 
 # --- DELETE PRODUCTION ROUTE ---
-@router.delete("/{route_id}")
+@router.delete("/{route_id}", dependencies=[Depends(allow_roles("manager","admin"))] )
 def delete_production_route(route_id: int, db: Session = Depends(get_db)):
     route = db.query(models.ProductionRoute).filter(models.ProductionRoute.id == route_id).first()
     if not route:

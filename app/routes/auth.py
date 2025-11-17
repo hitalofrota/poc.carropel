@@ -15,7 +15,8 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     new_user = models.User(
         name=user.name,
         email=user.email,
-        password_hash=hash_password(user.password)
+        password_hash=hash_password(user.password),
+        role=user.role
     )
     db.add(new_user)
     db.commit()
@@ -30,7 +31,9 @@ def login(user_data: schemas.LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais inválidas.")
 
     access_token = create_access_token(
-        data={"sub": user.email},
+        data={"sub": user.email,
+              "role": user.role.value 
+              },
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     return {"access_token": access_token, "token_type": "bearer"}

@@ -46,6 +46,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
+        role: str = payload.get("role")
+        
         if email is None:
             raise credentials_exception
     except JWTError:
@@ -55,3 +57,13 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         raise credentials_exception
     return user
+
+def allow_roles(*roles):
+    def wrapper(user = Depends(get_current_user)):
+        if user.role.value not in roles:
+            raise HTTPException(
+                status_code=403,
+                detail="Você não tem permissão para acessar este recurso."
+            )
+        return user
+    return wrapper

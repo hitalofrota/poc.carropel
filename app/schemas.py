@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field, EmailStr
 from enum import Enum
+from app.models import UserRole
 
 # ========================
 # USER
@@ -16,10 +17,14 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    role: Optional[UserRole] = UserRole.viewer
 
+class UpdateUserRole(BaseModel):
+    role: UserRole
 
 class UserResponse(UserBase):
     id: int
+    role: UserRole
 
     class Config:
         orm_mode = True

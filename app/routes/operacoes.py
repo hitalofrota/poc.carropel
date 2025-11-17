@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
-from app.auth import get_current_user
+from app.auth import get_current_user,allow_roles
 
 router = APIRouter(
     prefix="/operations",
@@ -11,7 +11,7 @@ router = APIRouter(
 )
 
 # --- CREATE OPERATION ---
-@router.post("/", response_model=schemas.OperationResponse)
+@router.post("/", response_model=schemas.OperationResponse, dependencies=[Depends(allow_roles("manager","admin"))] )
 def create_operation(operation: schemas.OperationCreate, db: Session = Depends(get_db)):
     existing_op = db.query(models.Operation).filter(models.Operation.name == operation.name).first()
     if existing_op:
@@ -28,13 +28,13 @@ def create_operation(operation: schemas.OperationCreate, db: Session = Depends(g
 
 
 # --- LIST ALL OPERATIONS ---
-@router.get("/", response_model=list[schemas.OperationResponse])
+@router.get("/", response_model=list[schemas.OperationResponse], dependencies=[Depends(allow_roles("manager","admin","viewer"))] )
 def list_operations(db: Session = Depends(get_db)):
     return db.query(models.Operation).all()
 
 
 # --- GET OPERATION BY ID ---
-@router.get("/{operation_id}", response_model=schemas.OperationResponse)
+@router.get("/{operation_id}", response_model=schemas.OperationResponse, dependencies=[Depends(allow_roles("manager","admin","viewer"))] )
 def get_operation(operation_id: int, db: Session = Depends(get_db)):
     operation = db.query(models.Operation).filter(models.Operation.id == operation_id).first()
     if not operation:
@@ -43,7 +43,7 @@ def get_operation(operation_id: int, db: Session = Depends(get_db)):
 
 
 # --- UPDATE OPERATION ---
-@router.put("/{operation_id}", response_model=schemas.OperationResponse)
+@router.put("/{operation_id}", response_model=schemas.OperationResponse, dependencies=[Depends(allow_roles("manager","admin"))] )
 def update_operation(operation_id: int, operation_update: schemas.OperationUpdate, db: Session = Depends(get_db)):
     operation = db.query(models.Operation).filter(models.Operation.id == operation_id).first()
     if not operation:
@@ -58,7 +58,7 @@ def update_operation(operation_id: int, operation_update: schemas.OperationUpdat
 
 
 # --- DELETE OPERATION ---
-@router.delete("/{operation_id}")
+@router.delete("/{operation_id}", dependencies=[Depends(allow_roles("manager","admin"))] )
 def delete_operation(operation_id: int, db: Session = Depends(get_db)):
     operation = db.query(models.Operation).filter(models.Operation.id == operation_id).first()
     if not operation:
