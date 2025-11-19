@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.database import Base, engine
 from app.routes import (users, 
                         auth, 
@@ -20,6 +21,15 @@ from app.routes import (users,
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="FastAPI + PostgreSQL + JWT")
+
+# Configurar CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # URL do seu frontend React
+    allow_credentials=True,
+    allow_methods=["*"],  # Permite todos os métodos HTTP
+    allow_headers=["*"],  # Permite todos os headers
+)
 
 app.include_router(auth.router)
 app.include_router(users.router)
