@@ -3,6 +3,7 @@ import { Mail, Lock, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 const CompanyLogo = () => {
   return (
@@ -32,8 +33,9 @@ const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
@@ -43,11 +45,60 @@ const LoginForm = () => {
       return;
     }
 
-    setTimeout(() => {
-      toast.success("Login realizado com sucesso!");
-      console.log("Email:", email, "Password:", password);
+    try {
+      const response = await fetch("http://localhost:8000/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email,
+          password: password,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Armazenar o token JWT
+        if (data.access_token) {
+          localStorage.setItem("token", data.access_token);
+          localStorage.setItem("user", JSON.stringify(data.user || { name: "Usuário", email: email }));
+        }
+        
+        toast.success("Login realizado com sucesso!");
+        
+        // Redirecionar para dashboard após 1 segundo
+        setTimeout(() => {
+          navigate("/dashboard");
+        }, 1000);
+        
+      } else {
+        const errorData = await response.json();
+        
+        // Tratamento de erros específicos
+        if (response.status === 401) {
+          toast.error("E-mail ou senha incorretos.");
+        } else if (response.status === 404) {
+          toast.error("Usuário não encontrado.");
+        } else if (errorData.detail) {
+          // Se a API retornar detalhes do erro
+          if (typeof errorData.detail === 'string') {
+            toast.error(errorData.detail);
+          } else if (Array.isArray(errorData.detail)) {
+            const errorMessages = errorData.detail.map((err: any) => err.msg).join(', ');
+            toast.error(errorMessages);
+          }
+        } else {
+          toast.error("Erro ao fazer login. Tente novamente.");
+        }
+      }
+    } catch (error) {
+      console.error("Erro na requisição:", error);
+      toast.error("Erro de conexão. Verifique se o servidor está rodando.");
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -108,14 +159,18 @@ const LoginForm = () => {
             {isLoading ? "Entrando..." : "Entrar"}
           </Button>
 
-          {/* 
-          <a 
-            href="#" 
-            className="text-sm text-primary hover:underline"
-          >
-            Esqueceu sua senha?
-          </a>
-          */}
+          {/* Link para registro */}
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">
+              Não tem uma conta?{" "}
+              <a 
+                href="/register" 
+                className="text-primary hover:underline font-medium"
+              >
+                Cadastre-se
+              </a>
+            </p>
+          </div>
         </form>
       </div>
     </div>
@@ -128,7 +183,6 @@ const LoginPage = () => {
       <div className="w-full max-w-4xl mx-auto">
         <div className="bg-card rounded-3xl shadow-xl border-2 border-transparent flex flex-col lg:flex-row min-h-[600px]">
           <CompanyLogo />
-          
           <LoginForm />
         </div>
       </div>
