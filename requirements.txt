@@ -21,3 +21,6 @@ python-dotenv
 pytest
 pytest-asyncio
 httpx
+python-multipart ### IMPORTANT for file upload tests ###
+chardet ## IDENTIFY ENCODING IN TESTS ###
+
