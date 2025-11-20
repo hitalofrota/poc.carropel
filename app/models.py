@@ -86,32 +86,60 @@ class Product(Base):
     net_weight = Column(Float, nullable=True)
     gross_weight = Column(Float, nullable=True)
 
-    parent_product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
-
-    parent_product = relationship(
-        "Product",
-        remote_side=[id],
-        back_populates="subproducts"
-    )
-    subproducts = relationship(
-        "Product",
-        back_populates="parent_product",
-        cascade="all, delete-orphan"
+    # ✔ Lista de itens do BOM onde ESTE produto é o PAI
+    bom_children = relationship(
+        "ProductBOM",
+        back_populates="parent",
+        cascade="all, delete-orphan",
+        foreign_keys="ProductBOM.parent_id"
     )
 
+    # ✔ Lista de itens do BOM onde ESTE produto é o FILHO
+    bom_parent = relationship(
+        "ProductBOM",
+        back_populates="child",
+        foreign_keys="ProductBOM.child_id"
+    )
+
+    # Outras relações
     production_orders = relationship("ProductionOrder", back_populates="product")
+
     materials = relationship(
         "ProductMaterial",
         back_populates="product",
         cascade="all, delete-orphan",
         passive_deletes=True
     )
+
     production_routes = relationship(
         "ProductionRoute",
         back_populates="product",
         cascade="all, delete-orphan",
         passive_deletes=True
     )
+
+class ProductBOM(Base):
+    __tablename__ = "product_bom"
+
+    id = Column(Integer, primary_key=True)
+
+    parent_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+    child_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+    quantity = Column(Float, nullable=False)
+    level_code = Column(String(100), nullable=True) 
+
+    parent = relationship(
+        "Product",
+        back_populates="bom_children",
+        foreign_keys=[parent_id]
+    )
+
+    child = relationship(
+        "Product",
+        back_populates="bom_parent",
+        foreign_keys=[child_id]
+    )
+
 
 class Material(Base):
     __tablename__ = "materials"

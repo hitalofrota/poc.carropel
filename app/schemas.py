@@ -201,8 +201,6 @@ class ProductBase(BaseModel):
     unit_price: Optional[float] = None
     net_weight: Optional[float] = None
     gross_weight: Optional[float] = None
-    parent_product_id: Optional[int] = Field(default=None, description="If this product is a subproduct")
-
 
 class ProductCreate(ProductBase):
     pass
@@ -216,17 +214,64 @@ class ProductUpdate(BaseModel):
     unit_price: Optional[float] = None
     net_weight: Optional[float] = None
     gross_weight: Optional[float] = None
-    parent_product_id: Optional[int] = None
+
+class BOMCreate(BaseModel):
+
+    child_id: Optional[int] = None
+    child_code: Optional[str] = None
+    quantity: float = Field(..., gt=0)
+    level_code: Optional[str] = None
+    order: Optional[int] = None
+
+class ProductBOMBase(BaseModel):
+    quantity: float = Field(..., gt=0)
+    level_code: Optional[str] = None
+    order: Optional[int] = None
 
 
-class ProductResponse(ProductBase):
+class ProductBOMCreate(ProductBOMBase):
+    # usado para entrada no POST
+    child_id: Optional[int] = None
+    child_code: Optional[str] = None
+
+
+class ProductBOMResponse(ProductBOMBase):
     id: int
-    parent_product_id: Optional[int] = None
-    subproducts: List["ProductResponse"] = []
+    parent_id: int
+    child_id: int
 
     class Config:
         orm_mode = True
 
+class ProductResponse(ProductBase):
+    id: int
+
+    bom_children: List[ProductBOMResponse] = []
+    bom_parent: List[ProductBOMResponse] = []
+
+    class Config:
+        orm_mode = True
+
+class ProductTreeNode(BaseModel):
+    id: int
+    code: str
+    name: str
+    unit_cost: Optional[float]
+    unit_price: Optional[float]
+
+    children: List["ProductTreeNode"] = []
+
+    # dados do BOM entre pai/filho
+    quantity: Optional[float] = None
+    level_code: Optional[str] = None
+    order: Optional[int] = None
+    bom_id: Optional[int] = None
+
+    class Config:
+        orm_mode = True
+
+
+ProductTreeNode.update_forward_refs()
 
 # ========================
 # RELATIONSHIP ORDER-MATERIAL
@@ -408,3 +453,12 @@ class ProductionRoutingResponse(ProductionRoutingBase):
 
     class Config:
         orm_mode = True
+
+# ========================
+# CSV SCHEMA
+# ========================  
+
+class ProductCSV(BaseModel):
+    nome: str = Field(..., min_length=2)
+    quantidade: int
+    preco: float
