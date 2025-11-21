@@ -6,7 +6,7 @@ from psycopg2.errors import UniqueViolation
 from app import models, schemas
 from app.database import get_db
 from app.auth import get_current_user, allow_roles
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 from app.services.bom_importer import import_full_product_with_bom
 
 router = APIRouter(
@@ -115,26 +115,73 @@ def _get_product_by_identifier(db: Session, child_id: Optional[int], child_code:
         return child
     raise HTTPException(status_code=400, detail="Either child_id or child_code must be provided")
 
-def _get_or_create_product(db: Session, name: str, code: str) -> models.Product:
-    normalized_code = (code or "").strip()
+def _get_or_create_product(db: Session, item: dict):
+    """
+    Usa referencia como código principal, se existir.
+    item contém:
+    {
+        "code": "1.2",
+        "name": "PERFIL X",
+        "referencia": "TMR 1305",
+        ...
+    }
+    """
 
-    existing = db.query(models.Product).filter(models.Product.code == normalized_code).first()
-    if existing:
-        return existing
+    product_code = item.get("referencia") or item.get("code")
+    product_name = item.get("name")
 
-    new_product = models.Product(
-        name=name.strip(),
-        code=normalized_code,
-        description="",
-        unit_cost=None,
-        unit_price=None,
-        net_weight=None,
-        gross_weight=None,
+    product = (
+        db.query(models.Product)
+        .filter(models.Product.code == product_code)
+        .first()
     )
-    db.add(new_product)
+
+    if product:
+        return product
+
+    product = models.Product(
+        name=product_name,
+        code=product_code,
+        description=item.get("material") or None
+    )
+
+    db.add(product)
     db.commit()
-    db.refresh(new_product)
-    return new_product
+    db.refresh(product)
+    return product
+
+def _clear_bom_for_tree(db: Session, root: models.Product):
+    """
+    Remove *todos* os links de BOM da árvore inteira.
+    """
+    visited = set()
+
+    def collect_products(product):
+        if product.id in visited:
+            return
+        visited.add(product.id)
+
+        children = (
+            db.query(models.ProductBOM)
+            .filter(models.ProductBOM.parent_id == product.id)
+            .all()
+        )
+
+        for c in children:
+            child = db.query(models.Product).get(c.child_id)
+            if child:
+                collect_products(child)
+
+    collect_products(root)
+
+    # delete all old BOM for all products in visited
+    db.query(models.ProductBOM).filter(
+        models.ProductBOM.parent_id.in_(visited)
+    ).delete(synchronize_session=False)
+
+    db.query(models.ProductBOM).filter(
+        models.ProductBOM.child_id.in_(visited)
+    ).delete(synchronize_session=False)
 
 
 
@@ -183,62 +230,79 @@ def _build_tree_node(db: Session, product: models.Product) -> Dict[str, Any]:
 
     return node
 
-def _import_bom_recursive(db: Session, parent_product, children: list):
-    for item in children:
+def _import_bom_recursive(db: Session, parent_product, children_items):
+    for item in children_items:
 
-        # cria ou pega o produto
-        child_product = _get_or_create_product(
-            db=db,
-            name=item["name"],
-            code=item["referencia"] or item["code"],  # code oficial virá da referência
+        child_product = _get_or_create_product(db, item)
+
+        # Evitar múltiplos pais
+        existing_parent = (
+            db.query(models.ProductBOM)
+            .filter(models.ProductBOM.child_id == child_product.id)
+            .first()
         )
+        if existing_parent:
+            # já tem pai, ignorar para não criar múltiplo
+            continue
 
-        # cria BOM (se já existir, atualiza)
-        existing_bom = db.query(models.ProductBOM).filter(
-            models.ProductBOM.parent_id == parent_product.id,
-            models.ProductBOM.child_id == child_product.id
-        ).first()
+        # Criar o link
+        db.add(models.ProductBOM(
+            parent_id=parent_product.id,
+            child_id=child_product.id,
+            quantity=float(item.get("qtd") or 1)
+        ))
 
-        if existing_bom:
-            existing_bom.quantity = float(item["qtd"] or 1)
-        else:
-            new_bom = models.ProductBOM(
-                parent_id=parent_product.id,
-                child_id=child_product.id,
-                quantity=float(item["qtd"] or 1),
-                level_code=item["code"],
-                # order=None
-            )
-            db.add(new_bom)
+        db.flush()
 
-        db.commit()
-
-        # recursão
+        # Recursão para os filhos do item
         if item.get("children"):
             _import_bom_recursive(db, child_product, item["children"])
 
 
+
 @router.post("/{parent_id}/components", dependencies=[Depends(allow_roles("manager", "admin"))])
 def add_component_to_product(parent_id: int, bom: schemas.BOMCreate, db: Session = Depends(get_db)):
+
     parent = db.query(models.Product).filter(models.Product.id == parent_id).first()
     if not parent:
         raise HTTPException(status_code=404, detail="Parent product not found")
 
+    # Cria ou pega o child
     child = _get_or_create_product(db, bom.child_name, bom.child_code)
-    
-    # evita adicionar self como child
-    if child.id == parent.id:
-        raise HTTPException(status_code=400, detail="Product cannot be component of itself")
 
-    # evita ciclos
+    # Não permite self-reference
+    if parent.id == child.id:
+        raise HTTPException(status_code=400, detail="Product cannot be a component of itself")
+
+    # Não permite ciclos
     if _has_cycle(db, parent_id=parent.id, child_id=child.id):
         raise HTTPException(status_code=400, detail="Adding this component would create a cycle in BOM")
 
-    # Se já existe uma entrada para esse parent-child, atualiza a quantity/level_code/order
-    existing = db.query(models.ProductBOM).filter(
-        models.ProductBOM.parent_id == parent.id,
-        models.ProductBOM.child_id == child.id
-    ).first()
+    # Validação crucial: child já tem outro parent
+    existing_parent = (
+        db.query(models.ProductBOM)
+        .filter(models.ProductBOM.child_id == child.id)
+        .first()
+    )
+
+    if existing_parent and existing_parent.parent_id != parent.id:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Product '{child.name}' (id={child.id}) already belongs to parent id="
+                f"{existing_parent.parent_id}. Each BOM item can only have one parent."
+            )
+        )
+
+    # Se já existe parent → child, atualiza
+    existing = (
+        db.query(models.ProductBOM)
+        .filter(
+            models.ProductBOM.parent_id == parent.id,
+            models.ProductBOM.child_id == child.id
+        )
+        .first()
+    )
 
     if existing:
         existing.quantity = bom.quantity
@@ -248,18 +312,20 @@ def add_component_to_product(parent_id: int, bom: schemas.BOMCreate, db: Session
         db.refresh(existing)
         return {"detail": "BOM entry updated", "bom_id": existing.id}
 
-    # Caso contrário cria nova entrada
+    # Cria nova BOM
     new_bom = models.ProductBOM(
         parent_id=parent.id,
         child_id=child.id,
         quantity=bom.quantity,
         level_code=bom.level_code,
-        # order=bom.order
+        order=bom.order
     )
     db.add(new_bom)
     db.commit()
     db.refresh(new_bom)
+
     return {"detail": "BOM entry created", "bom_id": new_bom.id}
+
 
 
 @router.delete("/components/{bom_id}", dependencies=[Depends(allow_roles("manager", "admin"))])
@@ -283,27 +349,21 @@ def get_full_tree(db: Session = Depends(get_db)):
 
 @router.post("/import-bom", dependencies=[Depends(allow_roles("manager", "admin"))])
 def import_bom(data: dict, db: Session = Depends(get_db)):
-    """
-    Recebe um JSON no formato:
-    {
-        "product_name": "...",
-        "components": [...]
-    }
-    """
+
     if "product_name" not in data or "components" not in data:
         raise HTTPException(400, "JSON inválido")
 
-    root_name = data["product_name"]
-    root_code = data["product_name"]  # pode definir outro critério se quiser
-
-    # criar ou pegar o produto raiz
+    # Criar/pegar produto raiz
     root_product = _get_or_create_product(
         db=db,
-        name=root_name,
-        code=root_code,
+        item={"name": data["product_name"], "code": data["product_name"]},
     )
 
-    # importa filhos recursivamente
+    # Limpa TODA a BOM do produto e subprodutos
+    _clear_bom_for_tree(db, root_product)
+    db.flush()
+
+    # Importa árvore completa
     _import_bom_recursive(db, root_product, data["components"])
 
     db.commit()
@@ -313,5 +373,3 @@ def import_bom(data: dict, db: Session = Depends(get_db)):
         "product_id": root_product.id,
         "product_name": root_product.name
     }
-
-
