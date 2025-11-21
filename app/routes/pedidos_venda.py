@@ -23,21 +23,11 @@ def create_sales_order(order_data: schemas.SalesOrderCreate, db: Session = Depen
 
     for item in order_data.items:
         new_item = models.SalesOrderItem(
-            order_id=order.id,
+            sales_order_id=order.id,
             product_id=item.product_id,
             quantity=item.quantity
         )
         db.add(new_item)
-
-        # Automatically create a linked production order
-        order_code = f"ORD-{order.order_number}-{item.product_id}"
-        production_order = models.ProductionOrder(
-            code=order_code,
-            product_id=item.product_id,
-            planned_quantity=item.quantity,
-            order_id=order.id,
-        )
-        db.add(production_order)
 
     db.commit()
     db.refresh(order)

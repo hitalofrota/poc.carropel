@@ -326,6 +326,40 @@ class ProductionOrderResponse(ProductionOrderBase):
     class Config:
         orm_mode = True
 
+class ProductionOrderFromProduct(BaseModel):
+    code: str
+    planned_quantity: float
+    notes: Optional[str] = None
+
+class BomChild(BaseModel):
+    child_id: int
+    quantity: float = 1
+
+class BomFlatItem(BaseModel):
+    id: int
+    name: str | None = None
+    bom_children: list[BomChild] = []
+
+class ComponentNode(BaseModel):
+    code: str
+    name: str
+    qtd: str
+    referencia: Optional[str] = None
+    material: Optional[str] = None
+    compr: Optional[str] = None
+    peso: Optional[str] = None
+    children: List['ComponentNode'] = []
+
+ComponentNode.update_forward_refs()
+
+class BOMTreeRequest(BaseModel):
+    product_name: str
+    filename: str
+    detected_encoding: str
+    total_items: int
+    components: List[ComponentNode]
+
+
 
 # ========================
 # RELATIONSHIP PRODUCT-MATERIAL
