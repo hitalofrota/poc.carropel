@@ -209,7 +209,6 @@ def _build_tree_node(db: Session, product: models.Product) -> Dict[str, Any]:
         "id": product.id,
         "code": getattr(product, "code", None),
         "name": getattr(product, "name", None),
-        # você pode adicionar outros campos do product conforme quiser:
         "unit_cost": getattr(product, "unit_cost", None),
         "unit_price": getattr(product, "unit_price", None),
         "children": []
@@ -235,7 +234,6 @@ def _import_bom_recursive(db: Session, parent_product, children_items):
 
         child_product = _get_or_create_product(db, item)
 
-        # Evitar múltiplos pais
         existing_parent = (
             db.query(models.ProductBOM)
             .filter(models.ProductBOM.child_id == child_product.id)
@@ -245,7 +243,6 @@ def _import_bom_recursive(db: Session, parent_product, children_items):
             # já tem pai, ignorar para não criar múltiplo
             continue
 
-        # Criar o link
         db.add(models.ProductBOM(
             parent_id=parent_product.id,
             child_id=child_product.id,
@@ -254,7 +251,6 @@ def _import_bom_recursive(db: Session, parent_product, children_items):
 
         db.flush()
 
-        # Recursão para os filhos do item
         if item.get("children"):
             _import_bom_recursive(db, child_product, item["children"])
 
@@ -267,18 +263,14 @@ def add_component_to_product(parent_id: int, bom: schemas.BOMCreate, db: Session
     if not parent:
         raise HTTPException(status_code=404, detail="Parent product not found")
 
-    # Cria ou pega o child
     child = _get_or_create_product(db, bom.child_name, bom.child_code)
 
-    # Não permite self-reference
     if parent.id == child.id:
         raise HTTPException(status_code=400, detail="Product cannot be a component of itself")
 
-    # Não permite ciclos
     if _has_cycle(db, parent_id=parent.id, child_id=child.id):
         raise HTTPException(status_code=400, detail="Adding this component would create a cycle in BOM")
 
-    # Validação crucial: child já tem outro parent
     existing_parent = (
         db.query(models.ProductBOM)
         .filter(models.ProductBOM.child_id == child.id)
@@ -294,7 +286,6 @@ def add_component_to_product(parent_id: int, bom: schemas.BOMCreate, db: Session
             )
         )
 
-    # Se já existe parent → child, atualiza
     existing = (
         db.query(models.ProductBOM)
         .filter(
@@ -312,7 +303,6 @@ def add_component_to_product(parent_id: int, bom: schemas.BOMCreate, db: Session
         db.refresh(existing)
         return {"detail": "BOM entry updated", "bom_id": existing.id}
 
-    # Cria nova BOM
     new_bom = models.ProductBOM(
         parent_id=parent.id,
         child_id=child.id,
@@ -352,18 +342,15 @@ def import_bom(data: dict, db: Session = Depends(get_db)):
 
     if "product_name" not in data or "components" not in data:
         raise HTTPException(400, "JSON inválido")
-
-    # Criar/pegar produto raiz
+    
     root_product = _get_or_create_product(
         db=db,
         item={"name": data["product_name"], "code": data["product_name"]},
     )
 
-    # Limpa TODA a BOM do produto e subprodutos
     _clear_bom_for_tree(db, root_product)
     db.flush()
 
-    # Importa árvore completa
     _import_bom_recursive(db, root_product, data["components"])
 
     db.commit()
@@ -373,3 +360,101 @@ def import_bom(data: dict, db: Session = Depends(get_db)):
         "product_id": root_product.id,
         "product_name": root_product.name
     }
+
+@router.post(
+    "/{parent_product_id}/subproducts",
+    response_model=schemas.ProductResponse,
+    dependencies=[Depends(allow_roles("manager","admin"))]
+)
+def add_subproduct(
+    parent_product_id: int,
+    item: dict,
+    db: Session = Depends(get_db)
+):
+    parent = db.query(models.Product).filter(models.Product.id == parent_product_id).first()
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent product not found")
+
+    child = _get_or_create_product(db, item)
+    quantity = item.get("quantity", 1)
+
+    if child.id == parent.id:
+        raise HTTPException(400, "A product cannot be its own child")
+
+    existing_parent_link = db.query(models.ProductBOM).filter(
+        models.ProductBOM.child_id == child.id
+    ).first()
+
+    if existing_parent_link:
+        if existing_parent_link.parent_id != parent.id:
+            raise HTTPException(
+                400,
+                f"Product '{child.name}' already belongs to another parent "
+                f"(ID {existing_parent_link.parent_id})."
+            )
+
+        existing_parent_link.quantity = quantity
+        db.commit()
+        db.refresh(child)
+        return child
+
+    bom = models.ProductBOM(
+        parent_id=parent.id,
+        child_id=child.id,
+        quantity=quantity
+    )
+
+    db.add(bom)
+    db.commit()
+    db.refresh(child)
+
+    return child
+
+
+
+@router.post(
+    "/{parent_product_id}/subproducts/{child_id}",
+    response_model=schemas.ProductResponse,
+    dependencies=[Depends(allow_roles("manager","admin"))]
+)
+def link_existing_subproduct(
+    parent_product_id: int,
+    child_id: int,
+    db: Session = Depends(get_db)
+):
+    parent = db.query(models.Product).filter(models.Product.id == parent_product_id).first()
+    if not parent:
+        raise HTTPException(404, "Parent product not found")
+
+    child = db.query(models.Product).filter(models.Product.id == child_id).first()
+    if not child:
+        raise HTTPException(404, "Child product not found")
+
+    if parent.id == child.id:
+        raise HTTPException(400, "A product cannot be its own child")
+
+    existing_parent_link = db.query(models.ProductBOM).filter(
+        models.ProductBOM.child_id == child.id
+    ).first()
+
+    if existing_parent_link:
+        if existing_parent_link.parent_id != parent.id:
+            raise HTTPException(
+                400,
+                f"Product '{child.name}' already belongs to another parent "
+                f"(ID {existing_parent_link.parent_id})."
+            )
+        raise HTTPException(400, "Subproduct already linked to this parent")
+
+    bom = models.ProductBOM(
+        parent_id=parent.id,
+        child_id=child.id,
+        quantity=1
+    )
+
+    db.add(bom)
+    db.commit()
+    db.refresh(child)
+
+    return child
+

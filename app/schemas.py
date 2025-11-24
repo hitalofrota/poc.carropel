@@ -273,6 +273,11 @@ class ProductTreeNode(BaseModel):
 
 ProductTreeNode.update_forward_refs()
 
+class SubProductCreate(BaseModel):
+    name: str
+    code: str
+    quantity: float = 1
+
 # ========================
 # RELATIONSHIP ORDER-MATERIAL
 # ========================
