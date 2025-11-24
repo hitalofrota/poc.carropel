@@ -11,66 +11,93 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)]
 )
 
-# ➕ Add subproduct (child product)
-@router.post("/{parent_product_id}/subproducts", response_model=schemas.ProductResponse, dependencies=[Depends(allow_roles("manager","admin"))] )
+@router.post("/{parent_product_id}/subproducts", 
+    response_model=schemas.ProductResponse,
+    dependencies=[Depends(allow_roles("manager","admin"))]
+)
+
+@router.post("/{parent_product_id}/subproducts", dependencies=[Depends(allow_roles("manager","admin"))])
 def add_subproduct(
     parent_product_id: int,
-    subproduct_data: schemas.ProductCreate,
+    data: schemas.ProductCreate,
     db: Session = Depends(get_db)
 ):
-    parent_product = db.query(models.Product).filter(models.Product.id == parent_product_id).first()
-    if not parent_product:
-        raise HTTPException(status_code=404, detail="Parent product not found")
+    parent = db.query(models.Product).filter(models.Product.id == parent_product_id).first()
+    if not parent:
+        raise HTTPException(404, "Parent product not found")
 
-    new_subproduct = models.Product(
-        name=subproduct_data.name,
-        code=subproduct_data.code,
-        description=subproduct_data.description,
-        unit_measure_id=subproduct_data.unit_measure_id,
-        unit_cost=subproduct_data.unit_cost,
-        parent_product_id=parent_product_id  # 🔹 links to parent product
+    # create or fetch the child product
+    child = _get_or_create_product(
+        db=db,
+        name=data.name,
+        code=data.code
     )
 
-    db.add(new_subproduct)
+    # create BOM relationship
+    bom = models.ProductBOM(
+        parent_id=parent_product_id,
+        child_id=child.id,
+        quantity=data.quantity
+    )
+
+    db.add(bom)
     db.commit()
-    db.refresh(new_subproduct)
+    db.refresh(child)
 
-    return new_subproduct
+    return child
 
 
-@router.post("/{parent_product_id}/subproducts/{subproduct_id}", response_model=schemas.ProductResponse, dependencies=[Depends(allow_roles("manager","admin"))] )
+@router.post("/{parent_product_id}/subproducts/{child_id}", dependencies=[Depends(allow_roles("manager","admin"))])
 def link_existing_subproduct(
     parent_product_id: int,
-    subproduct_id: int,
+    child_id: int,
     db: Session = Depends(get_db)
 ):
-    # Find parent product
-    parent_product = db.query(models.Product).filter(models.Product.id == parent_product_id).first()
-    if not parent_product:
-        raise HTTPException(status_code=404, detail="Parent product not found")
+    parent = db.query(models.Product).filter(models.Product.id == parent_product_id).first()
+    if not parent:
+        raise HTTPException(404, "Parent product not found")
 
-    # Find the product that will become the subproduct
-    subproduct = db.query(models.Product).filter(models.Product.id == subproduct_id).first()
-    if not subproduct:
-        raise HTTPException(status_code=404, detail="Child product not found")
+    child = db.query(models.Product).filter(models.Product.id == child_id).first()
+    if not child:
+        raise HTTPException(404, "Child product not found")
 
-    # Prevent cycles (a product cannot be a subproduct of itself)
-    if parent_product_id == subproduct_id:
-        raise HTTPException(status_code=400, detail="A product cannot be a subproduct of itself")
+    # check for existing relationship
+    existing = db.query(models.ProductBOM).filter(
+        models.ProductBOM.parent_id == parent_product_id,
+        models.ProductBOM.child_id == child_id,
+    ).first()
 
-    # Update parent-child relationship
-    subproduct.parent_product_id = parent_product_id
+    if existing:
+        raise HTTPException(400, "This subproduct already exists")
 
+    # create BOM relationship
+    bom = models.ProductBOM(
+        parent_id=parent_product_id,
+        child_id=child_id,
+        quantity=1
+    )
+
+    db.add(bom)
     db.commit()
-    db.refresh(subproduct)
-
-    return subproduct
+    return child
 
 
-@router.get("/{parent_product_id}/subproducts", response_model=list[schemas.ProductResponse], dependencies=[Depends(allow_roles("manager","admin","viewer"))] )
-def list_subproducts(parent_product_id: int, db: Session = Depends(get_db)):
-    parent_product = db.query(models.Product).filter(models.Product.id == parent_product_id).first()
-    if not parent_product:
-        raise HTTPException(status_code=404, detail="Parent product not found")
+@router.get("/{parent_product_id}/subproducts",
+    response_model=list[schemas.ProductResponse],
+    dependencies=[Depends(allow_roles("manager","admin","viewer"))]
+)
+def list_subproducts(
+    parent_product_id: int,
+    db: Session = Depends(get_db)
+):
+    parent = db.query(models.Product).filter_by(id=parent_product_id).first()
+    if not parent:
+        raise HTTPException(404, "Parent product not found")
 
-    return parent_product.subproducts
+    # get all children from BOM
+    bom_items = db.query(models.ProductBOM).filter_by(parent_id=parent_product_id).all()
+
+    child_ids = [b.child_id for b in bom_items]
+
+    return db.query(models.Product).filter(models.Product.id.in_(child_ids)).all()
+
