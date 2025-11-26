@@ -66,64 +66,42 @@ def create_orders_from_sales_order(
     sales_order_id: int,
     db: Session = Depends(get_db)
 ):
-    """
-    Generates full production orders (root + full BOM tree) based on a Sales Order.
-    Uses SalesOrderItem.quantity as the base quantity.
-    ProductionOrder.code pattern:
-        PO-{order_number}-{product_id}-{sequence}
-    """
-
-    sales_order = (
-        db.query(models.SalesOrder)
-        .filter_by(id=sales_order_id)
-        .first()
-    )
-
+    sales_order = db.query(models.SalesOrder).filter_by(id=sales_order_id).first()
     if not sales_order:
         raise HTTPException(status_code=404, detail="Sales order not found")
 
-    created_orders = []
+    created_orders_response: list[dict] = []  # vamos montar a resposta manualmente
 
-
-    # ----------- HELPER: GENERATE UNIQUE CODE WITH SEQUENCE -----------
-    def generate_order_code(order_number: str, product_id: int):
+    # ---------- helper para gerar código único ----------
+    def generate_order_code(order_number: str, product_id: int) -> str:
         prefix = f"PO-{order_number}-{product_id}-"
-
-        existing_codes = (
-            db.query(models.ProductionOrder.code)
-            .filter(models.ProductionOrder.code.like(f"{prefix}%"))
-            .all()
-        )
-
+        existing_codes = db.query(models.ProductionOrder.code).filter(
+            models.ProductionOrder.code.like(f"{prefix}%")
+        ).all()
         seq_numbers = []
         for (code,) in existing_codes:
             try:
                 seq = int(code.split("-")[-1])
                 seq_numbers.append(seq)
-            except:
+            except Exception:
                 pass
-
         next_seq = (max(seq_numbers) + 1) if seq_numbers else 1
         return f"{prefix}{next_seq}"
 
-    # ----------- RECURSIVE CREATION WITH CYCLE PROTECTION -----------
+    # ---------- função recursiva que cria OPs e monta o dict de resposta ----------
     def create_order_recursive(product_id: int, quantity: float, visited: set):
-
-        # Prevent BOM cycles
+        # prevenção de ciclos
         if product_id in visited:
-            print(f"⚠️ Cycle detected, skipping product {product_id}")
             return None
-
-        visited.add(product_id)
+        visited = visited | {product_id}
 
         product = db.query(models.Product).filter_by(id=product_id).first()
         if not product:
             return None
 
-        # ----- AUTO-INCREMENT CODE -----
         po_code = generate_order_code(sales_order.order_number, product_id)
 
-        # ---- Create order ----
+        # cria ProductionOrder no DB
         po = models.ProductionOrder(
             code=po_code,
             product_id=product_id,
@@ -134,38 +112,71 @@ def create_orders_from_sales_order(
             notes=f"Auto-generated from Sales Order {sales_order.order_number}"
         )
         db.add(po)
-        db.flush()
+        db.flush()  # garante que po.id exista
 
-        created_orders.append(po)
+        # carregar BOM children (leitura) e calcular effective_quantity localmente
+        bom_children = db.query(models.ProductBOM).filter_by(parent_id=product_id).all()
 
-        # ---- Process BOM children recursively ----
-        bom_children = (
-            db.query(models.ProductBOM)
-            .filter_by(parent_id=product_id)
-            .all()
-        )
-
+        # montar lista de bom_children serializável com effective_quantity
+        bom_children_serialized = []
         for bom in bom_children:
-            child_quantity = quantity * bom.quantity
-            create_order_recursive(
-                product_id=bom.child_id,
-                quantity=child_quantity,
-                visited=visited.copy()  # important!
-            )
+            bom_children_serialized.append({
+                "id": bom.id,
+                "parent_id": bom.parent_id,
+                "child_id": bom.child_id,
+                "quantity": bom.quantity,
+                "effective_quantity": bom.quantity * quantity,
+                "level_code": getattr(bom, "level_code", None),
+                "order": getattr(bom, "order", None),
+            })
+
+        # montar produto serializável com bom_children (não tocamos na DB)
+        product_serialized = {
+            "name": product.name,
+            "code": product.code,
+            "description": product.description,
+            "unit_cost": product.unit_cost,
+            "unit_price": product.unit_price,
+            "net_weight": product.net_weight,
+            "gross_weight": product.gross_weight,
+            "id": product.id,
+            "bom_children": bom_children_serialized,
+            "bom_parent": []  # se quiser pode popular similarmente
+        }
+
+        # montar o dict da ProductionOrder que respeita seu schema de response
+        po_dict = {
+            "code": po.code,
+            "product_id": po.product_id,
+            "planned_quantity": po.planned_quantity,
+            "status": po.status,
+            "notes": po.notes,
+            "id": po.id,
+            "created_at": po.created_at,
+            "start_date": po.start_date,
+            "end_date": po.end_date,
+            "product": product_serialized,
+            "used_materials": [],  # ajuste se você tiver materiais
+        }
+
+        created_orders_response.append(po_dict)
+
+        # recursão nos filhos
+        for bom in bom_children:
+            child_qty = quantity * bom.quantity
+            create_order_recursive(product_id=bom.child_id, quantity=child_qty, visited=visited)
 
         return po
 
-
-
-    # ----------- CREATE ROOT ORDERS FOR EACH ITEM -----------
+    # ---------- criar OPs raiz para cada item do SalesOrder ----------
     for item in sales_order.items:
-        create_order_recursive(product_id=item.product_id, 
-                               quantity=item.quantity, 
-                               visited=set())
+        create_order_recursive(product_id=item.product_id, quantity=item.quantity, visited=set())
 
+    # persistir tudo (orders criadas)
     db.commit()
 
-    return created_orders
+    # retornar a lista de dicts — Pydantic converterá para ProductionOrderResponse
+    return created_orders_response
 
 
 @router.get("/", response_model=list[schemas.ProductionOrderResponse], dependencies=[Depends(allow_roles("manager","admin","viewer"))])
@@ -194,6 +205,24 @@ def update_order(order_id: int, order_update: schemas.ProductionOrderUpdate, db:
     db.refresh(order)
     return order
 
+@router.delete(
+    "/delete-planned",
+    dependencies=[Depends(allow_roles("manager", "admin"))]
+)
+def delete_all_planned_orders(db: Session = Depends(get_db)):
+
+    deleted = (
+        db.query(models.ProductionOrder)
+        .filter(models.ProductionOrder.status == models.ProductionOrderStatus.planned)
+        .delete(synchronize_session=False)
+    )
+
+    db.commit()
+
+    return {
+        "deleted_orders": deleted,
+        "message": f"{deleted} planned production orders deleted successfully"
+    }
 
 @router.delete("/{order_id}", dependencies=[Depends(allow_roles("manager","admin"))])
 def delete_order(order_id: int, db: Session = Depends(get_db)):
@@ -204,3 +233,6 @@ def delete_order(order_id: int, db: Session = Depends(get_db)):
     db.delete(order)
     db.commit()
     return {"detail": "Order successfully deleted"}
+
+
+

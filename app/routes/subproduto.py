@@ -37,7 +37,8 @@ def add_subproduct(
     bom = models.ProductBOM(
         parent_id=parent_product_id,
         child_id=child.id,
-        quantity=data.quantity
+        quantity=data.quantity,
+        effective_quantity=data.effective_quantity
     )
 
     db.add(bom)
@@ -74,7 +75,8 @@ def link_existing_subproduct(
     bom = models.ProductBOM(
         parent_id=parent_product_id,
         child_id=child_id,
-        quantity=1
+        quantity=1,
+
     )
 
     db.add(bom)

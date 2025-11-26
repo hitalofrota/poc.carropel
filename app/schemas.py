@@ -222,6 +222,7 @@ class BOMCreate(BaseModel):
     quantity: float = Field(..., gt=0)
     level_code: Optional[str] = None
     order: Optional[int] = None
+    effective_quantity: float | None = None
 
 class ProductBOMBase(BaseModel):
     quantity: float = Field(..., gt=0)
@@ -239,6 +240,7 @@ class ProductBOMResponse(ProductBOMBase):
     id: int
     parent_id: int
     child_id: int
+    effective_quantity: float | None = None
 
     class Config:
         orm_mode = True
@@ -277,6 +279,7 @@ class SubProductCreate(BaseModel):
     name: str
     code: str
     quantity: float = 1
+    effective_quantity: float | None = None
 
 # ========================
 # RELATIONSHIP ORDER-MATERIAL
@@ -327,6 +330,7 @@ class ProductionOrderResponse(ProductionOrderBase):
     end_date: Optional[datetime] = None
     product: Optional[ProductResponse] = None
     used_materials: Optional[List[OrderMaterialResponse]] = None
+    effective_bom: list[ProductBOMResponse] = []
 
     class Config:
         orm_mode = True

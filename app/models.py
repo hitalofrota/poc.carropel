@@ -126,6 +126,7 @@ class ProductBOM(Base):
     parent_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
     child_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
     quantity = Column(Float, nullable=False)
+    # effective_quantity = Column(Float, nullable=True)
     level_code = Column(String(100), nullable=True) 
 
     parent = relationship(
