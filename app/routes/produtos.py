@@ -88,6 +88,20 @@ def update_product(product_id: int, product_update: schemas.ProductUpdate, db: S
     db.refresh(product)
     return product
 
+@router.delete(
+    "/all",
+    dependencies=[Depends(allow_roles("manager", "admin"))],
+    summary="Delete ALL products"
+)
+def delete_all_products(db: Session = Depends(get_db)):
+    deleted_count = db.query(models.Product).delete()
+    db.commit()
+
+    return {
+        "detail": "All products deleted",
+        "deleted_count": deleted_count
+    }
+
 
 @router.delete("/{product_id}", dependencies=[Depends(allow_roles("manager","admin"))] )
 def delete_product(product_id: int, db: Session = Depends(get_db)):
@@ -101,19 +115,6 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
 
 
 # -------------------- Helpers para BOM e árvore --------------------
-
-def _get_product_by_identifier(db: Session, child_id: Optional[int], child_code: Optional[str]) -> models.Product:
-    if child_id:
-        child = db.query(models.Product).filter(models.Product.id == child_id).first()
-        if not child:
-            raise HTTPException(status_code=400, detail="Child product (by id) not found")
-        return child
-    if child_code:
-        child = db.query(models.Product).filter(models.Product.code == child_code).first()
-        if not child:
-            raise HTTPException(status_code=400, detail="Child product (by code) not found")
-        return child
-    raise HTTPException(status_code=400, detail="Either child_id or child_code must be provided")
 
 def _get_or_create_product(db: Session, item: dict):
     """
@@ -299,6 +300,7 @@ def add_component_to_product(parent_id: int, bom: schemas.BOMCreate, db: Session
         existing.quantity = bom.quantity
         existing.level_code = bom.level_code
         existing.order = bom.order
+        existing.effective_quantity = bom.effective_quantity
         db.commit()
         db.refresh(existing)
         return {"detail": "BOM entry updated", "bom_id": existing.id}
@@ -308,7 +310,8 @@ def add_component_to_product(parent_id: int, bom: schemas.BOMCreate, db: Session
         child_id=child.id,
         quantity=bom.quantity,
         level_code=bom.level_code,
-        order=bom.order
+        order=bom.order,
+        effective_quantity=bom.effective_quantity
     )
     db.add(new_bom)
     db.commit()
@@ -378,6 +381,7 @@ def add_subproduct(
     child = _get_or_create_product(db, item)
     quantity = item.get("quantity", 1)
 
+
     if child.id == parent.id:
         raise HTTPException(400, "A product cannot be its own child")
 
@@ -394,6 +398,7 @@ def add_subproduct(
             )
 
         existing_parent_link.quantity = quantity
+
         db.commit()
         db.refresh(child)
         return child
@@ -401,7 +406,7 @@ def add_subproduct(
     bom = models.ProductBOM(
         parent_id=parent.id,
         child_id=child.id,
-        quantity=quantity
+        quantity=quantity,
     )
 
     db.add(bom)
@@ -449,7 +454,8 @@ def link_existing_subproduct(
     bom = models.ProductBOM(
         parent_id=parent.id,
         child_id=child.id,
-        quantity=1
+        quantity=1,
+        effective_quantity=bom.effective_quantity
     )
 
     db.add(bom)
@@ -457,4 +463,6 @@ def link_existing_subproduct(
     db.refresh(child)
 
     return child
+
+
 
