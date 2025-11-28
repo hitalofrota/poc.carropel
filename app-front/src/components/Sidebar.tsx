@@ -7,10 +7,10 @@ import {
   Factory,
   UploadCloud,
   LogOut,
+  Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils"; 
-
 
 const NavItem = ({ to, icon: Icon, children }: { to: string, icon: React.ElementType, children: React.ReactNode }) => {
   return (
@@ -55,7 +55,10 @@ const Sidebar = () => {
           <NavItem to="/orders" icon={ShoppingCart}>
             Pedidos (Vendas)
           </NavItem>
-          <NavItem to="/prodution" icon={Factory}>
+          <NavItem to="/products" icon={Package}>
+            Produtos
+          </NavItem>
+          <NavItem to="/production-order" icon={Factory}>
             Ordens de Produção
           </NavItem>
           <NavItem to="/upload" icon={UploadCloud}>
@@ -64,9 +67,7 @@ const Sidebar = () => {
         </nav>
       </div>
 
-      {/* 3. Rodapé da Sidebar (Logout) */}
       <div className="mt-auto p-4 border-t">
-        {/* Este Link deve apontar para sua rota de Logout */}
         <Link to="/login"> 
           <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive">
             <LogOut className="h-4 w-4" />

@@ -6,13 +6,28 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import DashboardLayout from "./layouts/DashboardLayout";
 
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import Users from "./pages/User";
-import Upload from "./pages/Index";
-import Production from "./pages/Production";
+import Login from "./pages/login/LoginPage";
+
+import Register from "./pages/register/RegisterPage";
+
+import Upload from "./pages/upload/Upload";
+
+import ProductionOrder from "../src/pages/productionOrders/ProductionOrderPage";
+import ProductionOrderCreatePage from "./pages/productionOrders/ProductionOrderCreatePage";
+import ProductionOrderEditPage from "./pages/productionOrders/ProductionOrderEditPage";
+
 import Orders from "./pages/Orders";
-import NotFound from "./pages/NotFound";
+
+import NotFound from "./pages/not-found/NotFound";
+
+import ProductsPage from "../src/pages/products/ProductsPage";
+import ProductCreatePage from '../src/pages/products/ProductCreatePage';
+import ProductEditPage from "./pages/products/ProductEditPage";
+
+import UsersPage from "./pages/users/UsersPage";
+import UserCreatePage from "./pages/users/UserCreatePage";
+import UserEditPage from "./pages/users/UserEditPage";
+
 
 const queryClient = new QueryClient();
 
@@ -31,10 +46,23 @@ const App = () => (
               path="/" 
               element={<Navigate to="/orders" replace />} 
             />
-            <Route path="/users" element={<Users />} />
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/users/create" element={<UserCreatePage />} />
+            <Route path="/users/edit/:id" element={<UserEditPage />} />
+
+
             <Route path="/orders" element={<Orders />} />
-            <Route path="/prodution" element={<Production />} />
+            
+            <Route path="/production-order" element={<ProductionOrder />} />
+            <Route path="/production-order/create" element={<ProductionOrderCreatePage />} />
+            <Route path="/production-order/edit/:id" element={<ProductionOrderEditPage />} />
+
             <Route path="/upload" element={<Upload />} />
+
+            <Route path="/products" element={<ProductsPage />} />
+            <Route path="/products/create" element={<ProductCreatePage />} />
+            <Route path="/products/edit/:id" element={<ProductEditPage />} />
+
           </Route>
 
           <Route path="*" element={<NotFound />} />
