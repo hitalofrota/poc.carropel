@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, field_validator
 from enum import Enum
 from app.models import UserRole
 
@@ -220,14 +220,14 @@ class BOMCreate(BaseModel):
     child_id: Optional[int] = None
     child_code: Optional[str] = None
     quantity: float = Field(..., gt=0)
-    level_code: Optional[str] = None
-    order: Optional[int] = None
+    # level_code: Optional[str] = None
+    # order: Optional[int] = None
     effective_quantity: float | None = None
 
 class ProductBOMBase(BaseModel):
     quantity: float = Field(..., gt=0)
-    level_code: Optional[str] = None
-    order: Optional[int] = None
+    # level_code: Optional[str] = None
+    # order: Optional[int] = None
 
 
 class ProductBOMCreate(ProductBOMBase):
@@ -241,6 +241,8 @@ class ProductBOMResponse(ProductBOMBase):
     parent_id: int
     child_id: int
     effective_quantity: float | None = None
+    production_order_id: int | None = None
+    production_order_code: str | None = None
 
     class Config:
         orm_mode = True
@@ -309,6 +311,7 @@ class ProductionOrderBase(BaseModel):
     code: str
     product_id: int
     planned_quantity: float
+    produced_quantity: Optional[float] = None
     status: Optional[ProductionOrderStatus] = ProductionOrderStatus.planned
     notes: Optional[str] = None
 
@@ -319,6 +322,7 @@ class ProductionOrderCreate(ProductionOrderBase):
 
 class ProductionOrderUpdate(BaseModel):
     planned_quantity: Optional[float] = None
+    produced_quantity: Optional[float] = None
     status: Optional[ProductionOrderStatus] = None
     notes: Optional[str] = None
 
@@ -338,6 +342,7 @@ class ProductionOrderResponse(ProductionOrderBase):
 class ProductionOrderFromProduct(BaseModel):
     code: str
     planned_quantity: float
+    #produced_quantity: float
     notes: Optional[str] = None
 
 class BomChild(BaseModel):
@@ -369,6 +374,51 @@ class BOMTreeRequest(BaseModel):
     components: List[ComponentNode]
 
 
+# ========================
+# POINTING ORDER
+# ========================
+
+class OperationPointingBase(BaseModel):
+    actual_operation_id: Optional[int] = None
+    actual_work_center_id: Optional[int] = None
+    actual_machine_id: Optional[int] = None
+
+    actual_start: Optional[datetime] = None
+    actual_end: Optional[datetime] = None
+
+    produced_quantity: Optional[float] = None
+
+    @field_validator("actual_end")
+    def end_after_start(cls, v, values):
+        if v and values.get("actual_start") and v < values["actual_start"]:
+            raise ValueError("actual_end não pode ser menor que actual_start")
+        return v
+
+
+class OperationPointingCreate(OperationPointingBase):
+    pass
+
+
+class OperationPointingResponse(OperationPointingBase):
+    id: int
+    production_order_id: int
+
+    class Config:
+        orm_mode = True
+
+class ProductionOrderCloseResponse(BaseModel):
+    id: int
+    status: str
+    end_date: datetime 
+
+    class Config:
+        orm_mode = True
+
+class StartProductionRequest(BaseModel):
+    start_date: Optional[datetime] = None
+
+class ProductionQuantityUpdate(BaseModel):
+    quantity: float = Field(..., gt=0, description="Quantidade produzida no apontamento")
 
 # ========================
 # RELATIONSHIP PRODUCT-MATERIAL
@@ -410,6 +460,7 @@ class ProductMaterialResponse(BaseModel):
 class SalesOrderItemBase(BaseModel):
     product_id: int
     quantity: float
+    delivery_date: Optional[datetime] = None
 
 
 class SalesOrderItemCreate(SalesOrderItemBase):
@@ -427,10 +478,12 @@ class SalesOrderBase(BaseModel):
     order_number: str
     customer: str
     notes: Optional[str] = None
+    delivery_date: Optional[datetime] = None  
 
 
 class SalesOrderCreate(SalesOrderBase):
     items: List[SalesOrderItemCreate]
+
 
 
 class SalesOrderResponse(SalesOrderBase):

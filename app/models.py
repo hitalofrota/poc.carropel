@@ -174,6 +174,7 @@ class ProductionOrder(Base):
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     route_id = Column(Integer, ForeignKey("production_routes.id"), nullable=True)
     planned_quantity = Column(Float, nullable=False)
+    produced_quantity = Column(Float, nullable=False, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
@@ -317,6 +318,7 @@ class SalesOrder(Base):
     order_number = Column(String(100), unique=True, nullable=False)
     customer = Column(String(200), nullable=False)
     order_date = Column(DateTime, default=datetime.utcnow)
+    delivery_date = Column(DateTime, nullable=True)
     notes = Column(Text, nullable=True)
     status = Column(Enum(SalesOrderStatus), default=SalesOrderStatus.planned)
 
@@ -334,6 +336,7 @@ class SalesOrderItem(Base):
     sales_order_id = Column(Integer, ForeignKey("sales_orders.id", ondelete="CASCADE"), nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     quantity = Column(Float, nullable=False)
+    delivery_date = Column(DateTime, nullable=True)
 
     sales_order = relationship("SalesOrder", back_populates="items")
     product = relationship("Product")

@@ -70,7 +70,10 @@ def create_orders_from_sales_order(
     if not sales_order:
         raise HTTPException(status_code=404, detail="Sales order not found")
 
-    created_orders_response: list[dict] = []  # vamos montar a resposta manualmente
+    created_orders_response: list[dict] = []
+
+    # mapa para acessar OPs já criadas
+    po_map: dict[int, models.ProductionOrder] = {}
 
     # ---------- helper para gerar código único ----------
     def generate_order_code(order_number: str, product_id: int) -> str:
@@ -95,10 +98,16 @@ def create_orders_from_sales_order(
             return None
         visited = visited | {product_id}
 
+        # produto
         product = db.query(models.Product).filter_by(id=product_id).first()
         if not product:
             return None
 
+        # verifica se esta ordem já foi criada na recursão
+        if product_id in po_map:
+            return po_map[product_id]
+
+        # criar código
         po_code = generate_order_code(sales_order.order_number, product_id)
 
         # cria ProductionOrder no DB
@@ -112,14 +121,28 @@ def create_orders_from_sales_order(
             notes=f"Auto-generated from Sales Order {sales_order.order_number}"
         )
         db.add(po)
-        db.flush()  # garante que po.id exista
+        db.flush()  # agora po.id existe
 
-        # carregar BOM children (leitura) e calcular effective_quantity localmente
+        # registra no mapa
+        po_map[product_id] = po
+
+        # carregar BOM children
         bom_children = db.query(models.ProductBOM).filter_by(parent_id=product_id).all()
 
-        # montar lista de bom_children serializável com effective_quantity
+        # ---- criar filhos primeiro (para podermos referenciar seus PO codes) ----
+        for bom in bom_children:
+            child_qty = quantity * bom.quantity
+            create_order_recursive(
+                product_id=bom.child_id,
+                quantity=child_qty,
+                visited=visited
+            )
+
+        # ---------- montar serialização dos children (incluindo ordem do filho) ----------
         bom_children_serialized = []
         for bom in bom_children:
+            child_po = po_map.get(bom.child_id)  # já criado acima
+
             bom_children_serialized.append({
                 "id": bom.id,
                 "parent_id": bom.parent_id,
@@ -128,9 +151,28 @@ def create_orders_from_sales_order(
                 "effective_quantity": bom.quantity * quantity,
                 "level_code": getattr(bom, "level_code", None),
                 "order": getattr(bom, "order", None),
+                "production_order_id": child_po.id if child_po else None,
+                "production_order_code": child_po.code if child_po else None
             })
 
-        # montar produto serializável com bom_children (não tocamos na DB)
+        # ---------- montar lista de bom_parent (quem usa este como componente) ----------
+        bom_parents = db.query(models.ProductBOM).filter_by(child_id=product_id).all()
+        bom_parent_serialized = []
+        for bom in bom_parents:
+            parent_po = po_map.get(bom.parent_id)  # pai já existe na recursão
+
+            bom_parent_serialized.append({
+                "id": bom.id,
+                "parent_id": bom.parent_id,
+                "child_id": bom.child_id,
+                "quantity": bom.quantity,
+                "level_code": getattr(bom, "level_code", None),
+                "order": getattr(bom, "order", None),
+                "production_order_id": parent_po.id if parent_po else None,
+                "production_order_code": parent_po.code if parent_po else None
+            })
+
+        # ---------- serialização do produto ----------
         product_serialized = {
             "name": product.name,
             "code": product.code,
@@ -141,10 +183,10 @@ def create_orders_from_sales_order(
             "gross_weight": product.gross_weight,
             "id": product.id,
             "bom_children": bom_children_serialized,
-            "bom_parent": []  # se quiser pode popular similarmente
+            "bom_parent": bom_parent_serialized
         }
 
-        # montar o dict da ProductionOrder que respeita seu schema de response
+        # ---------- serialização final da OP ----------
         po_dict = {
             "code": po.code,
             "product_id": po.product_id,
@@ -156,40 +198,113 @@ def create_orders_from_sales_order(
             "start_date": po.start_date,
             "end_date": po.end_date,
             "product": product_serialized,
-            "used_materials": [],  # ajuste se você tiver materiais
+            "used_materials": [],
         }
 
         created_orders_response.append(po_dict)
 
-        # recursão nos filhos
-        for bom in bom_children:
-            child_qty = quantity * bom.quantity
-            create_order_recursive(product_id=bom.child_id, quantity=child_qty, visited=visited)
-
         return po
 
-    # ---------- criar OPs raiz para cada item do SalesOrder ----------
+    # ---------- criar OPs raiz ----------
     for item in sales_order.items:
-        create_order_recursive(product_id=item.product_id, quantity=item.quantity, visited=set())
+        create_order_recursive(
+            product_id=item.product_id,
+            quantity=item.quantity,
+            visited=set()
+        )
 
-    # persistir tudo (orders criadas)
+    # persistir tudo
     db.commit()
 
-    # retornar a lista de dicts — Pydantic converterá para ProductionOrderResponse
     return created_orders_response
 
+def serialize_production_order(po: models.ProductionOrder, db: Session):
+    product = po.product
 
-@router.get("/", response_model=list[schemas.ProductionOrderResponse], dependencies=[Depends(allow_roles("manager","admin","viewer"))])
+    # carregar BOM children
+    bom_children = db.query(models.ProductBOM).filter_by(parent_id=product.id).all()
+    bom_children_serialized = []
+
+    for bom in bom_children:
+        # tentar encontrar uma order criada para o filho
+        child_po = db.query(models.ProductionOrder).filter_by(
+            product_id=bom.child_id,
+            sales_order_id=po.sales_order_id
+        ).first()
+
+        bom_children_serialized.append({
+            "id": bom.id,
+            "parent_id": bom.parent_id,
+            "child_id": bom.child_id,
+            "quantity": bom.quantity,
+            "effective_quantity": bom.quantity * po.planned_quantity,
+            "level_code": getattr(bom, "level_code", None),
+            "order": getattr(bom, "order", None),
+            "production_order_id": child_po.id if child_po else None,
+            "production_order_code": child_po.code if child_po else None
+        })
+
+    # carregar BOM parents
+    bom_parents = db.query(models.ProductBOM).filter_by(child_id=product.id).all()
+    bom_parent_serialized = []
+
+    for bom in bom_parents:
+        parent_po = db.query(models.ProductionOrder).filter_by(
+            product_id=bom.parent_id,
+            sales_order_id=po.sales_order_id
+        ).first()
+
+        bom_parent_serialized.append({
+            "id": bom.id,
+            "parent_id": bom.parent_id,
+            "child_id": bom.child_id,
+            "quantity": bom.quantity,
+            "level_code": getattr(bom, "level_code", None),
+            "order": getattr(bom, "order", None),
+            "production_order_id": parent_po.id if parent_po else None,
+            "production_order_code": parent_po.code if parent_po else None
+        })
+
+    return {
+        "code": po.code,
+        "product_id": po.product_id,
+        "planned_quantity": po.planned_quantity,
+        "produced_quantity":po.produced_quantity,
+        "status": po.status,
+        "notes": po.notes,
+        "id": po.id,
+        "created_at": po.created_at,
+        "start_date": po.start_date,
+        "end_date": po.end_date,
+        "product": {
+            "name": product.name,
+            "code": product.code,
+            "description": product.description,
+            "unit_cost": product.unit_cost,
+            "unit_price": product.unit_price,
+            "net_weight": product.net_weight,
+            "gross_weight": product.gross_weight,
+            "id": product.id,
+            "bom_children": bom_children_serialized,
+            "bom_parent": bom_parent_serialized,
+        },
+        "used_materials": [],
+        "effective_bom": []
+    }
+
+
+@router.get("/", response_model=list[schemas.ProductionOrderResponse])
 def list_orders(db: Session = Depends(get_db)):
-    return db.query(models.ProductionOrder).all()
+    orders = db.query(models.ProductionOrder).all()
+    return [serialize_production_order(po, db) for po in orders]
 
 
-@router.get("/{order_id}", response_model=schemas.ProductionOrderResponse, dependencies=[Depends(allow_roles("manager","admin","viewer"))])
+@router.get("/{order_id}", response_model=schemas.ProductionOrderResponse)
 def get_order(order_id: int, db: Session = Depends(get_db)):
-    order = db.query(models.ProductionOrder).filter(models.ProductionOrder.id == order_id).first()
-    if not order:
+    po = db.query(models.ProductionOrder).filter_by(id=order_id).first()
+    if not po:
         raise HTTPException(status_code=404, detail="Production order not found")
-    return order
+    return serialize_production_order(po, db)
 
 
 @router.put("/{order_id}", response_model=schemas.ProductionOrderResponse, dependencies=[Depends(allow_roles("manager","admin"))])
@@ -223,6 +338,45 @@ def delete_all_planned_orders(db: Session = Depends(get_db)):
         "deleted_orders": deleted,
         "message": f"{deleted} planned production orders deleted successfully"
     }
+
+@router.delete(
+    "/delete-finished",
+    dependencies=[Depends(allow_roles("manager", "admin"))]
+)
+def delete_all_finished_orders(db: Session = Depends(get_db)):
+
+    deleted = (
+        db.query(models.ProductionOrder)
+        .filter(models.ProductionOrder.status == models.ProductionOrderStatus.finished)
+        .delete(synchronize_session=False)
+    )
+
+    db.commit()
+
+    return {
+        "deleted_orders": deleted,
+        "message": f"{deleted} finished production orders deleted successfully"
+    }
+
+@router.delete(
+    "/delete-in_production",
+    dependencies=[Depends(allow_roles("manager", "admin"))]
+)
+def delete_all_in_production_orders(db: Session = Depends(get_db)):
+
+    deleted = (
+        db.query(models.ProductionOrder)
+        .filter(models.ProductionOrder.status == models.ProductionOrderStatus.in_production)
+        .delete(synchronize_session=False)
+    )
+
+    db.commit()
+
+    return {
+        "deleted_orders": deleted,
+        "message": f"{deleted} in_production production orders deleted successfully"
+    }
+
 
 @router.delete("/{order_id}", dependencies=[Depends(allow_roles("manager","admin"))])
 def delete_order(order_id: int, db: Session = Depends(get_db)):
