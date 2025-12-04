@@ -15,7 +15,8 @@ from app.routes import (users,
                         subproduto,
                         pedidos_venda,
                         roteiro_producao,
-                        upload_csv
+                        upload_csv,
+                        apontamento
                         )
 
 
@@ -47,6 +48,7 @@ app.include_router(subproduto.router)
 app.include_router(pedidos_venda.router)
 app.include_router(roteiro_producao.router)
 app.include_router(upload_csv.router)
+app.include_router(apontamento.router)
 
 @app.get("/")
 def root():
