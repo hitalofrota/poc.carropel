@@ -28,6 +28,8 @@ import UsersPage from "./pages/users/UsersPage";
 import UserCreatePage from "./pages/users/UserCreatePage";
 import UserEditPage from "./pages/users/UserEditPage";
 
+import ResultPage from "./pages/results/Result";
+
 
 const queryClient = new QueryClient();
 
@@ -62,6 +64,9 @@ const App = () => (
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/products/create" element={<ProductCreatePage />} />
             <Route path="/products/edit/:id" element={<ProductEditPage />} />
+
+            <Route path="/upload/result" element={<ResultPage />} />
+
 
           </Route>
 

@@ -14,7 +14,7 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)]
 )
 
-@router.post("/import-bom", dependencies=[Depends(allow_roles("manager", "admin"))])
+@router.post("/import-bom", dependencies=[Depends(allow_roles("admin","manager"))])
 def import_product_and_bom(data: dict, db: Session = Depends(get_db)):
     """
     Recebe o JSON do processo de Debug do CSV e cria:

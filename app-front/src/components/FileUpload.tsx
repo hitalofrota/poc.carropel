@@ -2,10 +2,15 @@ import { useState, useCallback } from "react";
 import { Upload, FileText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import { useUploadStore } from "@/store/useUploadStore";
 
 const FileUpload = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+
+  const navigate = useNavigate();
+  const setResult = useUploadStore((s) => s.setResult);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -18,8 +23,8 @@ const FileUpload = () => {
   }, []);
 
   const validateFile = (file: File): boolean => {
-    if (file.type !== "text/plain" && !file.name.endsWith(".txt")) {
-      toast.error("Apenas arquivos TXT são permitidos");
+    if (!file.name.endsWith(".csv")) {
+      toast.error("Apenas arquivos CSV são permitidos");
       return false;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -53,6 +58,40 @@ const FileUpload = () => {
     toast.info("Arquivo removido");
   };
 
+  const handleProcessFile = async () => {
+    if (!file) {
+      toast.error("Nenhum arquivo selecionado");
+      return;
+    }
+
+    try {
+      toast.info("Processando arquivo...");
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("http://localhost:8000/upload/debug", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Erro ao processar o arquivo");
+      }
+
+      const data = await response.json();
+
+      setResult(data);       // Save result globally
+      toast.success("Arquivo processado com sucesso!");
+
+      navigate("/upload/result"); // Go to result page
+
+    } catch (err) {
+      console.error(err);
+      toast.error("Falha ao processar o arquivo");
+    }
+  };
+
   return (
     <div className="w-full max-w-2xl mx-auto px-4">
       <div
@@ -70,24 +109,24 @@ const FileUpload = () => {
               <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
                 <Upload className="w-10 h-10 text-primary" />
               </div>
-              
+
               <div className="text-center space-y-2">
                 <h2 className="text-2xl font-bold text-foreground">
                   Envie seu arquivo
                 </h2>
                 <p className="text-muted-foreground">
-                  ou arraste um arquivo TXT
+                  ou arraste um arquivo CSV
                 </p>
               </div>
 
               <input
                 type="file"
                 id="file-input"
-                accept=".txt"
+                accept=".csv"
                 onChange={handleFileSelect}
                 className="hidden"
               />
-              
+
               <Button
                 variant="upload"
                 onClick={() => document.getElementById("file-input")?.click()}
@@ -96,7 +135,7 @@ const FileUpload = () => {
               </Button>
 
               <p className="text-sm text-muted-foreground">
-                Apenas arquivos .txt até 10MB
+                Apenas arquivos .csv até 10MB
               </p>
             </>
           ) : (
@@ -113,6 +152,7 @@ const FileUpload = () => {
                     </p>
                   </div>
                 </div>
+
                 <button
                   onClick={handleRemoveFile}
                   className="p-2 hover:bg-background rounded-lg transition-colors"
@@ -122,14 +162,15 @@ const FileUpload = () => {
               </div>
 
               <div className="flex gap-3">
-                <Button 
-                  variant="default" 
+                <Button
+                  variant="default"
                   className="flex-1"
-                  onClick={() => toast.success("Processando arquivo...")}
+                  onClick={handleProcessFile}
                 >
                   Processar arquivo
                 </Button>
-                <Button 
+
+                <Button
                   variant="outline"
                   onClick={() => document.getElementById("file-input")?.click()}
                 >
