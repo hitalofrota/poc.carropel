@@ -52,7 +52,7 @@ const Sidebar = () => {
           <NavItem to="/dashboard" icon={LayoutDashboard}>
             Dashboard
           </NavItem>
-          <NavItem to="/orders" icon={ShoppingCart}>
+          <NavItem to="/sales-order" icon={ShoppingCart}>
             Pedidos (Vendas)
           </NavItem>
           <NavItem to="/products" icon={Package}>

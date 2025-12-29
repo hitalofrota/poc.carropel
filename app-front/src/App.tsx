@@ -24,6 +24,10 @@ import ProductsPage from "../src/pages/products/ProductsPage";
 import ProductCreatePage from '../src/pages/products/ProductCreatePage';
 import ProductEditPage from "./pages/products/ProductEditPage";
 
+import SalesOrderCreatePage from "./pages/SalesOrders/SalesOrderCreatePage";
+import SalesOrdersPage from "./pages/SalesOrders/SalesOrderPage";
+import SalesOrderEditPage from "./pages/SalesOrders/SalesOrderEditPage";
+
 import UsersPage from "./pages/users/UsersPage";
 import UserCreatePage from "./pages/users/UserCreatePage";
 import UserEditPage from "./pages/users/UserEditPage";
@@ -67,6 +71,9 @@ const App = () => (
 
             <Route path="/upload/result" element={<ResultPage />} />
 
+            <Route path="/sales-order/create" element={<SalesOrderCreatePage />} />
+            <Route path="/sales-order" element={<SalesOrdersPage />} />
+            <Route path="/sales-order/edit/:id" element={<SalesOrderEditPage />} />
 
           </Route>
 

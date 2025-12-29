@@ -1,10 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
 from app.auth import get_current_user, allow_roles
 from datetime import datetime
 import re
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+)
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.enums import TA_LEFT, TA_CENTER
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.pagesizes import A4
+from io import BytesIO
 
 router = APIRouter(
     prefix="/orders",
@@ -35,6 +44,160 @@ def create_order(order: schemas.ProductionOrderCreate, db: Session = Depends(get
     db.commit()
     db.refresh(new_order)
     return new_order
+
+def formatar_data(data_iso):
+    if not data_iso:
+        return "-"
+    return datetime.fromisoformat(data_iso).strftime("%d/%m/%Y %H:%M")
+
+def generate_production_order_pdf(order: dict) -> bytes:
+    buffer = BytesIO()
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36,
+    )
+
+    styles = getSampleStyleSheet()
+    elements = []
+
+    # ====== ESTILOS CUSTOM ======
+    title_style = ParagraphStyle(
+        "Title",
+        parent=styles["Title"],
+        alignment=TA_CENTER,
+        fontSize=18,
+        spaceAfter=20,
+    )
+
+    section_style = ParagraphStyle(
+        "Section",
+        parent=styles["Heading2"],
+        fontSize=13,
+        spaceBefore=16,
+        spaceAfter=8,
+    )
+
+    label_style = ParagraphStyle(
+        "Label",
+        parent=styles["Normal"],
+        fontSize=10,
+        spaceAfter=4,
+    )
+
+    # ====== TÍTULO ======
+    elements.append(Paragraph("ORDEM DE PRODUÇÃO", title_style))
+
+    # ====== DADOS DA ORDEM ======
+    elements.append(Paragraph("Dados da Ordem", section_style))
+
+    elements.append(Paragraph(f"<b>Código:</b> {order['code']}", label_style))
+    elements.append(Paragraph(
+        f"<b>Produto:</b> {order['product']['name']}", label_style
+    ))
+    elements.append(Paragraph(
+        f"<b>Quantidade Planejada:</b> {order['planned_quantity']}", label_style
+    ))
+    elements.append(Paragraph(
+        f"<b>Status:</b> {order['status']}", label_style
+    ))
+
+    if order.get("start_date"):
+        elements.append(
+            Paragraph(f"<b>Data Início:</b> {order['start_date']}", label_style)
+        )
+
+    if order.get("end_date"):
+        elements.append(
+            Paragraph(f"<b>Data Fim:</b> {order['end_date']}", label_style)
+        )
+
+    # ====== PEDIDO DE VENDA ======
+    sales_order = order.get("sales_order")
+    if sales_order:
+        elements.append(Spacer(1, 12))
+        elements.append(Paragraph("Pedido de Venda", section_style))
+
+        elements.append(
+            Paragraph(f"<b>Código:</b> {sales_order.get('code')}", label_style)
+        )
+        elements.append(
+            Paragraph(f"<b>Cliente:</b> {sales_order.get('customer_name')}", label_style)
+        )
+        elements.append(
+            Paragraph(f"<b>Data:</b> {sales_order.get('created_at')}", label_style)
+        )
+
+        if sales_order.get("notes"):
+            elements.append(
+                Paragraph(f"<b>Observações:</b> {sales_order['notes']}", label_style)
+            )
+
+    # ====== BOM / FILHOS ======
+    elements.append(Spacer(1, 16))
+    elements.append(Paragraph("Estrutura do Produto (BOM)", section_style))
+
+    table_data = [
+        [
+            "Ordem Filho",
+            "Produto Filho",
+            "Qtd Base",
+            "Qtd Efetiva",
+        ]
+    ]
+
+    for child in order["product"]["bom_children"]:
+        table_data.append([
+            child["production_order_code"],
+            f"Produto ID {child['child_id']}",
+            str(child["quantity"]),
+            str(child["effective_quantity"]),
+        ])
+
+    table = Table(table_data, colWidths=[110, 180, 80, 80])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("FONT", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("ALIGN", (2, 1), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+        ("TOPPADDING", (0, 0), (-1, 0), 8),
+    ]))
+
+    elements.append(table)
+
+    # ====== RODAPÉ ======
+    elements.append(Spacer(1, 24))
+    elements.append(
+        Paragraph(
+            f"Documento gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+            styles["Italic"],
+        )
+    )
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer.read()
+
+
+@router.post("/pdf")
+def gerar_pdf_ordem_producao(op: dict):
+    pdf_bytes = generate_production_order_pdf(op)
+
+    filename = f"ordem_producao_{op['code']}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+    )
 
 def generate_order_code(db: Session, sales_order_number: str, product_id: int) -> str:
     prefix = f"PO-{sales_order_number}-{product_id}-"

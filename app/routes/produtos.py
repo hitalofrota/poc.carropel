@@ -15,22 +15,31 @@ router = APIRouter(
     dependencies=[Depends(get_current_user)]
 )
 
-@router.post("/", response_model=schemas.ProductResponse, dependencies=[Depends(allow_roles("manager", "admin"))])
-def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
-
+@router.post(
+    "/",
+    response_model=schemas.ProductResponse,
+    dependencies=[Depends(allow_roles("manager", "admin"))],
+)
+def create_product(
+    product: schemas.ProductCreate,
+    db: Session = Depends(get_db)
+):
     # Normalização robusta do code
     normalized_code = (
         product.code
-        .strip()               # remove espaços
-        .replace("\u00A0", "") # remove espaço não quebrável (muito comum em CSV)
-        .upper()               # opcional: garante casing consistente
+        .strip()
+        .replace("\u00A0", "")
+        .upper()
     )
 
     try:
+        data = product.dict(exclude_unset=True, exclude={"code"})
+
         new_product = models.Product(
-            **product.dict(exclude_unset=True),
+            **data,
             code=normalized_code
         )
+
         db.add(new_product)
         db.commit()
         db.refresh(new_product)
@@ -38,17 +47,19 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
 
     except IntegrityError as e:
         db.rollback()
-        # Se for realmente violação de unique
+
         if isinstance(e.orig, UniqueViolation):
             raise HTTPException(
                 status_code=400,
                 detail=f"Product code '{normalized_code}' already exists"
             )
+
         raise
 
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/", response_model=list[schemas.ProductResponse], dependencies=[Depends(allow_roles("manager","admin","viewer"))] )
 def list_products(db: Session = Depends(get_db)):

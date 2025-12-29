@@ -129,18 +129,20 @@ def generate_report(op, name):
     doc.build(elements)
     print(f"✅ PDF gerado com sucesso: {name}")
 
-# ===== Extração e Geração dos Dados =====
-path_csv = 'projeto-zenite/LISTA_COCHO.csv'
-df = extract_data(path_csv)
-extraction = generate_data_json(df)
-json_string = json.dumps(extraction, indent=4, ensure_ascii=False)
-print(json_string)
-data = json_string
+# # ===== Extração e Geração dos Dados =====
+# path_csv = 'projeto-zenite/LISTA_COCHO.csv'
+# df = extract_data(path_csv)
+# extraction = generate_data_json(df)
+# json_string = json.dumps(extraction, indent=4, ensure_ascii=False)
+# print(json_string)
+# data = json_string
 
 
-ops = json.loads(data)
+# ops = json.loads(data)
 
-for op in ops:
-    name = f"ordem_producao_{op['ordem_id']}.pdf"
-    generate_report(op, name)
+
+
+# for op in ops:
+#     name = f"ordem_producao_{op['ordem_id']}.pdf"
+#     generate_report(op, name)
 

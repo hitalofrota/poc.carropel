@@ -43,5 +43,18 @@ export const productionOrderService = {
     searchProductionOrders: async (query: string): Promise<ProductionOrderResponse[]> => {
         const response = await api.get<ProductionOrderResponse[]>(`/orders/search?q=${query}`);
         return response.data;
-    }
+    },
+
+    createFromSalesOrder: async (salesOrderId: number) => {
+        const response = await api.post(
+            `/orders/from-sales-order/${salesOrderId}`
+        );
+        return response.data;
+    },
+    async generatePdf(order: ProductionOrderResponse) {
+        return api.post("/orders/pdf", order, {
+        responseType: "blob",
+        });
+    },
+
 };
