@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
 from app.auth import get_current_user, allow_roles
-from datetime import datetime
+from datetime import datetime, date
 import re
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -469,15 +469,43 @@ def get_order(order_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Production order not found")
     return serialize_production_order(po, db)
 
+from datetime import date
 
-@router.put("/{order_id}", response_model=schemas.ProductionOrderResponse, dependencies=[Depends(allow_roles("manager","admin"))])
-def update_order(order_id: int, order_update: schemas.ProductionOrderUpdate, db: Session = Depends(get_db)):
-    order = db.query(models.ProductionOrder).filter(models.ProductionOrder.id == order_id).first()
+@router.put(
+    "/{order_id}",
+    response_model=schemas.ProductionOrderResponse,
+    dependencies=[Depends(allow_roles("manager", "admin"))]
+)
+def update_order(
+    order_id: int,
+    order_update: schemas.ProductionOrderUpdate,
+    db: Session = Depends(get_db)
+):
+    order = (
+        db.query(models.ProductionOrder)
+        .filter(models.ProductionOrder.id == order_id)
+        .first()
+    )
+
     if not order:
         raise HTTPException(status_code=404, detail="Production order not found")
 
-    for key, value in order_update.dict(exclude_unset=True).items():
+    data = order_update.dict(exclude_unset=True)
+
+    for key, value in data.items():
         setattr(order, key, value)
+
+    if "start_date" not in data and order.start_date is None:
+        order.start_date = date.today()
+
+    if order.status == schemas.ProductionOrderStatus.planned:
+        has_movement = (
+            (order.produced_quantity is not None and order.produced_quantity > 0)
+            or order.start_date is not None
+        )
+
+        if has_movement:
+            order.status = schemas.ProductionOrderStatus.in_production
 
     db.commit()
     db.refresh(order)

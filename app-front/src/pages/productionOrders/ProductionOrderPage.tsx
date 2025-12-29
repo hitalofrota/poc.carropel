@@ -37,10 +37,33 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
-import { ProductionOrderResponse } from "../../types/production-order";
 import { productionOrderService } from "../../services";
 
-const ProductionOrderPage = () => {
+/* ============================
+   TIPOS ALINHADOS AO BACKEND
+   ============================ */
+
+export type ProductionOrderStatus =
+  | "planned"
+  | "in_production"
+  | "finished"
+  | "canceled";
+
+export interface ProductionOrderResponse {
+  id: number;
+  code: string;
+  status: ProductionOrderStatus;
+  planned_quantity?: number;
+  produced_quantity?: number;
+  start_date?: string;
+  end_date?: string;
+}
+
+/* ============================
+   COMPONENTE
+   ============================ */
+
+const ProductionOrderPage: React.FC = () => {
   const [productionOrders, setProductionOrders] = useState<
     ProductionOrderResponse[]
   >([]);
@@ -54,8 +77,7 @@ const ProductionOrderPage = () => {
   const loadProductionOrders = async () => {
     try {
       setLoading(true);
-      const data =
-        await productionOrderService.getProductionOrders();
+      const data = await productionOrderService.getProductionOrders();
       setProductionOrders(data);
     } catch (error) {
       console.error(error);
@@ -112,64 +134,35 @@ const ProductionOrderPage = () => {
     }
   };
 
-  // 👉 GERAÇÃO DE PDF
-  const handleGeneratePdf = async (
-    order: ProductionOrderResponse
-  ) => {
-    try {
-      const response =
-        await productionOrderService.generatePdf(order);
+  /* ============================
+     STATUS BADGE (ALINHADO)
+     ============================ */
 
-      const blob = new Blob([response.data], {
-        type: "application/pdf",
-      });
-
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-
-      a.href = url;
-      a.download = `ordem_producao_${order.code}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-
-      a.remove();
-      window.URL.revokeObjectURL(url);
-
-      toast.success("PDF gerado com sucesso");
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao gerar PDF da ordem de produção");
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: ProductionOrderStatus) => {
     const variants = {
-      pending: {
+      planned: {
         class: "bg-yellow-100 text-yellow-800",
         icon: Calendar,
-        label: "Pendente",
+        label: "Planejada",
       },
-      in_progress: {
+      in_production: {
         class: "bg-blue-100 text-blue-800",
         icon: PlayCircle,
-        label: "Em Andamento",
+        label: "Em Produção",
       },
-      completed: {
+      finished: {
         class: "bg-green-100 text-green-800",
         icon: CheckCircle,
-        label: "Concluída",
+        label: "Finalizada",
       },
-      cancelled: {
+      canceled: {
         class: "bg-red-100 text-red-800",
         icon: XCircle,
         label: "Cancelada",
       },
-    };
+    } as const;
 
-    const config =
-      variants[status as keyof typeof variants] ||
-      variants.pending;
-
+    const config = variants[status];
     const Icon = config.icon;
 
     return (
@@ -180,18 +173,20 @@ const ProductionOrderPage = () => {
     );
   };
 
+  /* ============================
+     FILTRO
+     ============================ */
+
   const normalizedSearch = searchTerm.toLowerCase();
 
   const filteredProductionOrders = productionOrders.filter(
-    (order) => {
-      const name = order.name?.toLowerCase() ?? "";
-      const code = order.code?.toLowerCase() ?? "";
-      return (
-        name.includes(normalizedSearch) ||
-        code.includes(normalizedSearch)
-      );
-    }
+    (order) =>
+      order.code.toLowerCase().includes(normalizedSearch)
   );
+
+  /* ============================
+     RENDER
+     ============================ */
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
@@ -208,7 +203,7 @@ const ProductionOrderPage = () => {
 
         <div className="flex gap-2">
           <Button
-            variant="secondary"
+            variant="upload"
             onClick={handleCreateFromSalesOrder}
           >
             <FilePlus className="mr-2 h-4 w-4" />
@@ -218,7 +213,7 @@ const ProductionOrderPage = () => {
           <Button asChild variant="upload">
             <Link to="/production-order/create">
               <PlusCircle className="mr-2 h-4 w-4" />
-              Nova Ordem de Produção
+              Nova Ordem
             </Link>
           </Button>
         </div>
@@ -230,7 +225,7 @@ const ProductionOrderPage = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Buscar por nome ou código..."
+            placeholder="Buscar por código..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 h-11"
@@ -249,10 +244,12 @@ const ProductionOrderPage = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Código</TableHead>
-              <TableHead>Nome</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">
-                Quantidade
+                Qtd. Planejada
+              </TableHead>
+              <TableHead className="text-right">
+                Qtd. Produzida
               </TableHead>
               <TableHead>Data Início</TableHead>
               <TableHead>Data Fim</TableHead>
@@ -283,53 +280,71 @@ const ProductionOrderPage = () => {
                       {order.code}
                     </Badge>
                   </TableCell>
-                  <TableCell>{order.name}</TableCell>
+
                   <TableCell>
                     {getStatusBadge(order.status)}
                   </TableCell>
+
                   <TableCell className="text-right">
-                    {(order.quantity ?? 0).toLocaleString("pt-BR")}
+                    {(order.planned_quantity ?? 0).toLocaleString(
+                      "pt-BR"
+                    )}
                   </TableCell>
+
+                  <TableCell className="text-right">
+                    {(order.produced_quantity ?? 0).toLocaleString(
+                      "pt-BR"
+                    )}
+                  </TableCell>
+
                   <TableCell>
                     {order.start_date
-                      ? new Date(order.start_date).toLocaleDateString("pt-BR")
+                      ? new Date(
+                          order.start_date
+                        ).toLocaleDateString("pt-BR")
                       : "-"}
                   </TableCell>
+
                   <TableCell>
                     {order.end_date
-                      ? new Date(order.end_date).toLocaleDateString("pt-BR")
+                      ? new Date(
+                          order.end_date
+                        ).toLocaleDateString("pt-BR")
                       : "-"}
                   </TableCell>
+
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
+                        <Button
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                        >
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
 
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                        <DropdownMenuLabel>
+                          Ações
+                        </DropdownMenuLabel>
 
                         <DropdownMenuItem asChild>
-                          <Link to={`/production-order/edit/${order.id}`}>
+                          <Link
+                            to={`/production-order/edit/${order.id}`}
+                          >
                             <Edit className="mr-2 h-4 w-4" />
                             Editar
                           </Link>
                         </DropdownMenuItem>
 
                         <DropdownMenuItem asChild>
-                          <Link to={`/production-order/view/${order.id}`}>
+                          <Link
+                            to={`/production-order/view/${order.id}`}
+                          >
                             <Eye className="mr-2 h-4 w-4" />
                             Visualizar
                           </Link>
-                        </DropdownMenuItem>
-
-                        <DropdownMenuItem
-                          onClick={() => handleGeneratePdf(order)}
-                        >
-                          <FileText className="mr-2 h-4 w-4" />
-                          Gerar PDF
                         </DropdownMenuItem>
 
                         <DropdownMenuSeparator />
@@ -350,15 +365,11 @@ const ProductionOrderPage = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
-                  <div className="flex flex-col items-center text-muted-foreground">
-                    <Calendar className="h-12 w-12 mb-2 opacity-50" />
-                    <p>
-                      {searchTerm
-                        ? `Nenhuma ordem encontrada para "${searchTerm}".`
-                        : "Nenhuma ordem de produção cadastrada."}
-                    </p>
-                  </div>
+                <TableCell
+                  colSpan={7}
+                  className="h-24 text-center"
+                >
+                  Nenhuma ordem de produção encontrada.
                 </TableCell>
               </TableRow>
             )}
