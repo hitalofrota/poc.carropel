@@ -108,31 +108,31 @@ const ProductionOrderPage: React.FC = () => {
     }
   };
 
-  const handleCreateFromSalesOrder = async () => {
-    const saleOrderId = window.prompt(
-      "Informe o ID do Pedido de Venda:"
-    );
+  // const handleCreateFromSalesOrder = async () => {
+  //   const saleOrderId = window.prompt(
+  //     "Informe o ID do Pedido de Venda:"
+  //   );
 
-    if (!saleOrderId) return;
+  //   if (!saleOrderId) return;
 
-    try {
-      setLoading(true);
-      await productionOrderService.createFromSalesOrder(
-        Number(saleOrderId)
-      );
-      toast.success(
-        "Ordem de produção criada a partir do pedido de venda!"
-      );
-      await loadProductionOrders();
-    } catch (error) {
-      console.error(error);
-      toast.error(
-        "Erro ao criar ordem de produção a partir do pedido de venda"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  //   try {
+  //     setLoading(true);
+  //     await productionOrderService.createFromSalesOrder(
+  //       Number(saleOrderId)
+  //     );
+  //     toast.success(
+  //       "Ordem de produção criada a partir do pedido de venda!"
+  //     );
+  //     await loadProductionOrders();
+  //   } catch (error) {
+  //     console.error(error);
+  //     toast.error(
+  //       "Erro ao criar ordem de produção a partir do pedido de venda"
+  //     );
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   /* ============================
      STATUS BADGE (ALINHADO)
@@ -202,12 +202,11 @@ const ProductionOrderPage: React.FC = () => {
         </div>
 
         <div className="flex gap-2">
-          <Button
-            variant="upload"
-            onClick={handleCreateFromSalesOrder}
-          >
-            <FilePlus className="mr-2 h-4 w-4" />
-            Criar via Pedido de Venda
+          <Button asChild variant="upload">
+            <Link to="/production-order/create-from-sale-order">
+              <FilePlus className="mr-2 h-4 w-4" />
+              Criar via Pedido de Venda
+            </Link>
           </Button>
 
           <Button asChild variant="upload">

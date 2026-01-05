@@ -1,17 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Save,
   ArrowLeft,
   Calendar,
   CheckCircle,
-  XCircle
+  XCircle,
+  Package
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -25,12 +32,9 @@ import { toast } from "sonner";
 import {
   ProductionOrderUpdateData,
   ProductionOrderResponse
-} from '../../types/production-order';
-import { productionOrderService } from '../../services/productionOrderService';
-import LoadingButton from '../../components/LoadingButton';
-
-const normalizeDate = (value?: string | null) =>
-  value ? value.split('T')[0] : '';
+} from "../../types/production-order";
+import { productionOrderService } from "../../services/productionOrderService";
+import LoadingButton from "../../components/LoadingButton";
 
 const ProductionOrderEditPage: React.FC = () => {
   const navigate = useNavigate();
@@ -42,15 +46,18 @@ const ProductionOrderEditPage: React.FC = () => {
   const [formData, setFormData] = useState<ProductionOrderUpdateData>({
     planned_quantity: 0,
     produced_quantity: null,
-    status: 'planned',
+    status: "planned",
     notes: null
   });
+
+  const [product, setProduct] = useState<ProductionOrderResponse["product"] | null>(null);
+  const [orderCode, setOrderCode] = useState<string>("");
 
   useEffect(() => {
     const loadProductionOrder = async () => {
       if (!id) {
-        toast.error('ID da ordem de produção não informado');
-        navigate('/production-order');
+        toast.error("ID da ordem de produção não informado");
+        navigate("/production-order");
         return;
       }
 
@@ -64,14 +71,17 @@ const ProductionOrderEditPage: React.FC = () => {
         setFormData({
           planned_quantity: order.planned_quantity ?? 0,
           produced_quantity: order.produced_quantity ?? null,
-          status: order.status ?? 'planned',
+          status: order.status ?? "planned",
           notes: order.notes ?? null
         });
 
+        setProduct(order.product ?? null);
+        setOrderCode(order.code);
+
       } catch (error) {
         console.error(error);
-        toast.error('Erro ao carregar dados da ordem de produção');
-        navigate('/production-order');
+        toast.error("Erro ao carregar dados da ordem de produção");
+        navigate("/production-order");
       } finally {
         setLoadingOrder(false);
       }
@@ -85,7 +95,7 @@ const ProductionOrderEditPage: React.FC = () => {
 
     setFormData(prev => ({
       ...prev,
-      [name]: value === '' ? null : Number(value)
+      [name]: value === "" ? null : Number(value)
     }));
   };
 
@@ -100,7 +110,7 @@ const ProductionOrderEditPage: React.FC = () => {
     e.preventDefault();
 
     if (!id) {
-      toast.error('ID da ordem de produção não informado');
+      toast.error("ID da ordem de produção não informado");
       return;
     }
 
@@ -116,19 +126,17 @@ const ProductionOrderEditPage: React.FC = () => {
         notes: formData.notes
       });
 
-      toast.success('Ordem de produção atualizada com sucesso!', {
+      toast.success("Ordem de produção atualizada com sucesso!", {
         icon: <CheckCircle className="w-4 h-4" />
       });
 
-      navigate('/production-order');
+      navigate("/production-order");
 
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
 
-      toast.error('Erro ao atualizar ordem de produção', {
-        description: typeof detail === 'string'
-          ? detail
-          : 'Erro inesperado',
+      toast.error("Erro ao atualizar ordem de produção", {
+        description: typeof detail === "string" ? detail : "Erro inesperado",
         icon: <XCircle className="w-4 h-4" />
       });
     } finally {
@@ -149,8 +157,10 @@ const ProductionOrderEditPage: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
+
+      {/* HEADER */}
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/production-order')}>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/production-order")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
 
@@ -159,10 +169,52 @@ const ProductionOrderEditPage: React.FC = () => {
         </h1>
 
         <Badge variant="secondary" className="ml-auto">
-          ID: {id}
+          {orderCode || `ID: ${id}`}
         </Badge>
       </div>
 
+      {/* PRODUTO */}
+      {product && (
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-2">
+            <Package className="w-5 h-5" />
+            <div>
+              <CardTitle>Produto</CardTitle>
+              <CardDescription>
+                Produto vinculado à ordem de produção
+              </CardDescription>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <Label>Nome</Label>
+                <Input value={product.name} disabled />
+              </div>
+
+              <div>
+                <Label>Código</Label>
+                <Input value={product.code} disabled />
+              </div>
+
+              <div>
+                <Label>ID do Produto</Label>
+                <Input value={product.id} disabled />
+              </div>
+
+              {product.description && (
+                <div className="md:col-span-3">
+                  <Label>Descrição</Label>
+                  <Input value={product.description} disabled />
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ORDEM */}
       <Card>
         <CardHeader>
           <CardTitle>Informações da Ordem</CardTitle>
@@ -173,6 +225,7 @@ const ProductionOrderEditPage: React.FC = () => {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+
             <div className="grid md:grid-cols-3 gap-6">
               <div>
                 <Label>Quantidade Planejada *</Label>
@@ -180,7 +233,7 @@ const ProductionOrderEditPage: React.FC = () => {
                   type="number"
                   min={1}
                   name="planned_quantity"
-                  value={formData.planned_quantity ?? ''}
+                  value={formData.planned_quantity ?? ""}
                   onChange={handleChange}
                   required
                 />
@@ -192,7 +245,7 @@ const ProductionOrderEditPage: React.FC = () => {
                   type="number"
                   min={0}
                   name="produced_quantity"
-                  value={formData.produced_quantity ?? ''}
+                  value={formData.produced_quantity ?? ""}
                   onChange={handleChange}
                 />
               </div>
@@ -208,16 +261,20 @@ const ProductionOrderEditPage: React.FC = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="planned">Planejada</SelectItem>
-                    <SelectItem value="in_progress">Em andamento</SelectItem>
-                    <SelectItem value="completed">Concluída</SelectItem>
-                    <SelectItem value="cancelled">Cancelada</SelectItem>
+                    <SelectItem value="in_production">Em Produção</SelectItem>
+                    <SelectItem value="finished">Finalizada</SelectItem>
+                    <SelectItem value="canceled">Cancelada</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button type="button" variant="outline" onClick={() => navigate('/production-order')}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate("/production-order")}
+              >
                 Cancelar
               </Button>
 
@@ -226,6 +283,7 @@ const ProductionOrderEditPage: React.FC = () => {
                 Salvar Alterações
               </LoadingButton>
             </div>
+
           </form>
         </CardContent>
       </Card>
