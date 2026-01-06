@@ -10,6 +10,8 @@ import Login from "./pages/login/LoginPage";
 
 import Register from "./pages/register/RegisterPage";
 
+import HomePage from "./pages/home/HomePage"
+
 import Upload from "./pages/upload/Upload";
 
 import ProductionOrder from "../src/pages/productionOrders/ProductionOrderPage";
@@ -52,11 +54,13 @@ const App = () => (
           <Route element={<DashboardLayout />}>
             <Route 
               path="/" 
-              element={<Navigate to="/orders" replace />} 
+              element={<Navigate to="/home" replace />} 
             />
             <Route path="/users" element={<UsersPage />} />
             <Route path="/users/create" element={<UserCreatePage />} />
             <Route path="/users/edit/:id" element={<UserEditPage />} />
+
+            <Route path="/home" element={<HomePage />} />
 
             <Route path="/orders" element={<Orders />} />
             

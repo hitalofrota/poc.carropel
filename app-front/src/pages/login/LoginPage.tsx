@@ -1,11 +1,9 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Mail, Lock, LogIn, CheckCircle, XCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import LoadingButton from "@/components/LoadingButton";
 
@@ -75,7 +73,6 @@ const LoginPage = () => {
       if (response.ok) {
         const data = await response.json();
         
-        // Armazenar o token JWT
         if (data.access_token) {
           localStorage.setItem("token", data.access_token);
           localStorage.setItem("user", JSON.stringify(data.user || { name: "Usuário", email: formData.email }));
@@ -86,15 +83,13 @@ const LoginPage = () => {
           icon: <CheckCircle className="w-4 h-4" />
         });
         
-        // Redirecionar para dashboard após 1 segundo
         setTimeout(() => {
-          navigate("/dashboard");
+          navigate("/home");
         }, 1000);
         
       } else {
         const errorData = await response.json();
         
-        // Tratamento de erros específicos
         if (response.status === 401) {
           toast.error('Credenciais inválidas', {
             description: "E-mail ou senha incorretos.",
