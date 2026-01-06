@@ -16,6 +16,7 @@ import ProductionOrder from "../src/pages/productionOrders/ProductionOrderPage";
 import ProductionOrderCreatePage from "./pages/productionOrders/ProductionOrderCreatePage";
 import ProductionOrderEditPage from "./pages/productionOrders/ProductionOrderEditPage";
 import ProductionOrderCreateFromSaleOrder from "./pages/productionOrders/ProductionOrderCreateFromSaleOrder";
+import ProductionOrderPdfView from "./pages/productionOrders/ProductionOrderPdfView";
 
 import Orders from "./pages/Orders";
 
@@ -57,20 +58,20 @@ const App = () => (
             <Route path="/users/create" element={<UserCreatePage />} />
             <Route path="/users/edit/:id" element={<UserEditPage />} />
 
-
             <Route path="/orders" element={<Orders />} />
             
             <Route path="/production-order" element={<ProductionOrder />} />
             <Route path="/production-order/create" element={<ProductionOrderCreatePage />} />
             <Route path="/production-order/edit/:id" element={<ProductionOrderEditPage />} />
-
+            <Route path="/production-order/create-from-sale-order" element={<ProductionOrderCreateFromSaleOrder />} />  
+            <Route path="/production-order/pdf/:id" element={<ProductionOrderPdfView />}
+/>
             <Route path="/upload" element={<Upload />} />
 
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/products/create" element={<ProductCreatePage />} />
             <Route path="/products/edit/:id" element={<ProductEditPage />} />
-            <Route path="/production-order/create-from-sale-order" element={<ProductionOrderCreateFromSaleOrder />} />  
-            
+
             <Route path="/upload/result" element={<ResultPage />} />
 
             <Route path="/sales-order/create" element={<SalesOrderCreatePage />} />

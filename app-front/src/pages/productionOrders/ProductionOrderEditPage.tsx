@@ -36,6 +36,21 @@ import {
 import { productionOrderService } from "../../services/productionOrderService";
 import LoadingButton from "../../components/LoadingButton";
 
+/* =========================
+   Helpers
+========================= */
+
+const toDateInputValue = (date?: string | null) => {
+  if (!date) return "";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+};
+
+/* =========================
+   Component
+========================= */
+
 const ProductionOrderEditPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -47,11 +62,19 @@ const ProductionOrderEditPage: React.FC = () => {
     planned_quantity: 0,
     produced_quantity: null,
     status: "planned",
-    notes: null
+    notes: null,
+    start_date: null,
+    end_date: null
   });
 
-  const [product, setProduct] = useState<ProductionOrderResponse["product"] | null>(null);
+  const [product, setProduct] =
+    useState<ProductionOrderResponse["product"] | null>(null);
+
   const [orderCode, setOrderCode] = useState<string>("");
+
+  /* =========================
+     Load Production Order
+  ========================= */
 
   useEffect(() => {
     const loadProductionOrder = async () => {
@@ -65,14 +88,15 @@ const ProductionOrderEditPage: React.FC = () => {
         setLoadingOrder(true);
 
         const orderId = Number(id);
-        const order: ProductionOrderResponse =
-          await productionOrderService.getProductionOrder(orderId);
+        const order = await productionOrderService.getProductionOrder(orderId);
 
         setFormData({
           planned_quantity: order.planned_quantity ?? 0,
           produced_quantity: order.produced_quantity ?? null,
           status: order.status ?? "planned",
-          notes: order.notes ?? null
+          notes: order.notes ?? null,
+          start_date: order.start_date ?? null,
+          end_date: order.end_date ?? null
         });
 
         setProduct(order.product ?? null);
@@ -90,7 +114,11 @@ const ProductionOrderEditPage: React.FC = () => {
     loadProductionOrder();
   }, [id, navigate]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  /* =========================
+     Handlers
+  ========================= */
+
+  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
 
     setFormData(prev => ({
@@ -99,18 +127,40 @@ const ProductionOrderEditPage: React.FC = () => {
     }));
   };
 
-  const handleSelectChange = (value: string) => {
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+
+    setFormData(prev => ({
+      ...prev,
+      [name]: value === "" ? null : value
+    }));
+  };
+
+  const handleStatusChange = (value: string) => {
     setFormData(prev => ({
       ...prev,
       status: value
     }));
   };
 
+  /* =========================
+     Submit
+  ========================= */
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!id) {
       toast.error("ID da ordem de produção não informado");
+      return;
+    }
+
+    if (
+      formData.start_date &&
+      formData.end_date &&
+      formData.end_date < formData.start_date
+    ) {
+      toast.error("A data de término não pode ser anterior à data de início");
       return;
     }
 
@@ -123,7 +173,9 @@ const ProductionOrderEditPage: React.FC = () => {
         planned_quantity: formData.planned_quantity,
         produced_quantity: formData.produced_quantity,
         status: formData.status,
-        notes: formData.notes
+        notes: formData.notes,
+        start_date: formData.start_date,
+        end_date: formData.end_date
       });
 
       toast.success("Ordem de produção atualizada com sucesso!", {
@@ -144,6 +196,10 @@ const ProductionOrderEditPage: React.FC = () => {
     }
   };
 
+  /* =========================
+     Loading
+  ========================= */
+
   if (loadingOrder) {
     return (
       <div className="container mx-auto p-8 flex items-center justify-center h-64">
@@ -155,12 +211,20 @@ const ProductionOrderEditPage: React.FC = () => {
     );
   }
 
+  /* =========================
+     Render
+  ========================= */
+
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
 
-      {/* HEADER */}
+      {/* Header */}
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/production-order")}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate("/production-order")}
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
 
@@ -173,7 +237,7 @@ const ProductionOrderEditPage: React.FC = () => {
         </Badge>
       </div>
 
-      {/* PRODUTO */}
+      {/* Produto */}
       {product && (
         <Card>
           <CardHeader className="flex flex-row items-center gap-2">
@@ -214,7 +278,7 @@ const ProductionOrderEditPage: React.FC = () => {
         </Card>
       )}
 
-      {/* ORDEM */}
+      {/* Ordem */}
       <Card>
         <CardHeader>
           <CardTitle>Informações da Ordem</CardTitle>
@@ -226,6 +290,7 @@ const ProductionOrderEditPage: React.FC = () => {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
 
+            {/* Quantidades + Status */}
             <div className="grid md:grid-cols-3 gap-6">
               <div>
                 <Label>Quantidade Planejada *</Label>
@@ -234,7 +299,7 @@ const ProductionOrderEditPage: React.FC = () => {
                   min={1}
                   name="planned_quantity"
                   value={formData.planned_quantity ?? ""}
-                  onChange={handleChange}
+                  onChange={handleNumberChange}
                   required
                 />
               </div>
@@ -246,7 +311,7 @@ const ProductionOrderEditPage: React.FC = () => {
                   min={0}
                   name="produced_quantity"
                   value={formData.produced_quantity ?? ""}
-                  onChange={handleChange}
+                  onChange={handleNumberChange}
                 />
               </div>
 
@@ -254,7 +319,7 @@ const ProductionOrderEditPage: React.FC = () => {
                 <Label>Status</Label>
                 <Select
                   value={formData.status}
-                  onValueChange={handleSelectChange}
+                  onValueChange={handleStatusChange}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -263,12 +328,36 @@ const ProductionOrderEditPage: React.FC = () => {
                     <SelectItem value="planned">Planejada</SelectItem>
                     <SelectItem value="in_production">Em Produção</SelectItem>
                     <SelectItem value="finished">Finalizada</SelectItem>
-                    <SelectItem value="canceled">Cancelada</SelectItem>
+                    <SelectItem value="cancelled">Cancelada</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
+            {/* Datas */}
+            <div className="grid md:grid-cols-3 gap-6">
+              <div>
+                <Label>Data de Início</Label>
+                <Input
+                  type="date"
+                  name="start_date"
+                  value={toDateInputValue(formData.start_date)}
+                  onChange={handleDateChange}
+                />
+              </div>
+
+              <div>
+                <Label>Data de Término</Label>
+                <Input
+                  type="date"
+                  name="end_date"
+                  value={toDateInputValue(formData.end_date)}
+                  onChange={handleDateChange}
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
             <div className="flex justify-end gap-3 pt-4 border-t">
               <Button
                 type="button"

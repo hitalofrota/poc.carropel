@@ -47,7 +47,7 @@ export type ProductionOrderStatus =
   | "planned"
   | "in_production"
   | "finished"
-  | "canceled";
+  | "cancelled";
 
 export interface ProductionOrderResponse {
   id: number;
@@ -155,7 +155,7 @@ const ProductionOrderPage: React.FC = () => {
         icon: CheckCircle,
         label: "Finalizada",
       },
-      canceled: {
+      cancelled: {
         class: "bg-red-100 text-red-800",
         icon: XCircle,
         label: "Cancelada",
@@ -339,10 +339,10 @@ const ProductionOrderPage: React.FC = () => {
 
                         <DropdownMenuItem asChild>
                           <Link
-                            to={`/production-order/view/${order.id}`}
+                            to={`/production-order/pdf/${order.id}`}
                           >
                             <Eye className="mr-2 h-4 w-4" />
-                            Visualizar
+                            Visualizar PDF
                           </Link>
                         </DropdownMenuItem>
 

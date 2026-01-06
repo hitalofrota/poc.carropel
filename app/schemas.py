@@ -59,7 +59,13 @@ class ProductionOrderStatus(str, Enum):
     planned = "planned"
     in_production = "in_production"
     finished = "finished"
-    canceled = "canceled"
+    cancelled = "cancelled"
+
+class SalesOrderStatus(str, Enum):
+    planned = "planned"
+    in_production = "in_production"
+    finished = "finished"
+    cancelled = "cancelled"
 
 
 # ========================
@@ -327,6 +333,7 @@ class ProductionOrderUpdate(BaseModel):
     status: Optional[ProductionOrderStatus] = None
     notes: Optional[str] = None
     start_date: Optional[date] = None
+    end_date: Optional[date] = None
 
 
 class ProductionOrderResponse(ProductionOrderBase):
@@ -480,6 +487,7 @@ class SalesOrderBase(BaseModel):
     order_number: str
     customer: str
     notes: Optional[str] = None
+    status: Optional[SalesOrderStatus] = SalesOrderStatus.planned
     delivery_date: Optional[datetime] = None  
 
 
