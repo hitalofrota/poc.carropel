@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app import models, schemas
 from app.database import get_db
 from app.auth import get_current_user, allow_roles
-from datetime import datetime
+from datetime import datetime, date
 import re
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -50,7 +50,7 @@ def formatar_data(data_iso):
         return "-"
     return datetime.fromisoformat(data_iso).strftime("%d/%m/%Y %H:%M")
 
-def generate_production_order_pdf(order: dict) -> bytes:
+def generate_production_order_pdf(order) -> bytes:
     buffer = BytesIO()
 
     doc = SimpleDocTemplate(
@@ -65,7 +65,7 @@ def generate_production_order_pdf(order: dict) -> bytes:
     styles = getSampleStyleSheet()
     elements = []
 
-    # ====== ESTILOS CUSTOM ======
+    # ====== ESTILOS ======
     title_style = ParagraphStyle(
         "Title",
         parent=styles["Title"],
@@ -95,81 +95,107 @@ def generate_production_order_pdf(order: dict) -> bytes:
     # ====== DADOS DA ORDEM ======
     elements.append(Paragraph("Dados da Ordem", section_style))
 
-    elements.append(Paragraph(f"<b>Código:</b> {order['code']}", label_style))
-    elements.append(Paragraph(
-        f"<b>Produto:</b> {order['product']['name']}", label_style
-    ))
-    elements.append(Paragraph(
-        f"<b>Quantidade Planejada:</b> {order['planned_quantity']}", label_style
-    ))
-    elements.append(Paragraph(
-        f"<b>Status:</b> {order['status']}", label_style
-    ))
+    elements.append(
+        Paragraph(f"<b>Código:</b> {order.code}", label_style)
+    )
 
-    if order.get("start_date"):
+    product_name = order.product.name if order.product else "-"
+    elements.append(
+        Paragraph(f"<b>Produto:</b> {product_name}", label_style)
+    )
+
+    elements.append(
+        Paragraph(
+            f"<b>Quantidade Planejada:</b> {order.planned_quantity or 0}",
+            label_style,
+        )
+    )
+
+    elements.append(
+        Paragraph(f"<b>Status:</b> {order.status}", label_style)
+    )
+
+    if order.start_date:
         elements.append(
-            Paragraph(f"<b>Data Início:</b> {order['start_date']}", label_style)
+            Paragraph(
+                f"<b>Data Início:</b> {order.start_date.strftime('%d/%m/%Y')}",
+                label_style,
+            )
         )
 
-    if order.get("end_date"):
+    if order.end_date:
         elements.append(
-            Paragraph(f"<b>Data Fim:</b> {order['end_date']}", label_style)
+            Paragraph(
+                f"<b>Data Fim:</b> {order.end_date.strftime('%d/%m/%Y')}",
+                label_style,
+            )
         )
 
     # ====== PEDIDO DE VENDA ======
-    sales_order = order.get("sales_order")
-    if sales_order:
+    if order.sales_order:
         elements.append(Spacer(1, 12))
         elements.append(Paragraph("Pedido de Venda", section_style))
 
         elements.append(
-            Paragraph(f"<b>Código:</b> {sales_order.get('code')}", label_style)
-        )
-        elements.append(
-            Paragraph(f"<b>Cliente:</b> {sales_order.get('customer_name')}", label_style)
-        )
-        elements.append(
-            Paragraph(f"<b>Data:</b> {sales_order.get('created_at')}", label_style)
+            Paragraph(
+                f"<b>Código:</b> {order.sales_order.id}",
+                label_style,
+            )
         )
 
-        if sales_order.get("notes"):
+        elements.append(
+            Paragraph(
+                f"<b>Cliente:</b> {order.sales_order.customer}",
+                label_style,
+            )
+        )
+
+        elements.append(
+            Paragraph(
+                f"<b>Data:</b> {order.sales_order.order_date.strftime('%d/%m/%Y')}",
+                label_style,
+            )
+        )
+
+        if order.sales_order.notes:
             elements.append(
-                Paragraph(f"<b>Observações:</b> {sales_order['notes']}", label_style)
+                Paragraph(
+                    f"<b>Observações:</b> {order.sales_order.notes}",
+                    label_style,
+                )
             )
 
-    # ====== BOM / FILHOS ======
-    elements.append(Spacer(1, 16))
-    elements.append(Paragraph("Estrutura do Produto (BOM)", section_style))
+    # ====== BOM ======
+    if order.product and order.product.bom_children:
+        elements.append(Spacer(1, 16))
+        elements.append(
+            Paragraph("Estrutura do Produto (BOM)", section_style)
+        )
 
-    table_data = [
-        [
-            "Ordem Filho",
-            "Produto Filho",
-            "Qtd Base",
-            "Qtd Efetiva",
+        table_data = [
+            ["Ordem Filho", "Produto Filho", "Qtd Base", "Qtd Efetiva"]
         ]
-    ]
 
-    for child in order["product"]["bom_children"]:
-        table_data.append([
-            child["production_order_code"],
-            f"Produto ID {child['child_id']}",
-            str(child["quantity"]),
-            str(child["effective_quantity"]),
-        ])
+        for child in order.product.bom_children:
+            table_data.append([
+                child.production_order_code or "-",
+                f"Produto ID {child.child_id}",
+                str(child.quantity),
+                str(child.effective_quantity),
+            ])
 
-    table = Table(table_data, colWidths=[110, 180, 80, 80])
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ("FONT", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("ALIGN", (2, 1), (-1, -1), "CENTER"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
-        ("TOPPADDING", (0, 0), (-1, 0), 8),
-    ]))
+        table = Table(table_data, colWidths=[110, 180, 80, 80])
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("FONT", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN", (2, 1), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+            ("TOPPADDING", (0, 0), (-1, 0), 8),
+        ]))
 
-    elements.append(table)
+        elements.append(table)
 
     # ====== RODAPÉ ======
     elements.append(Spacer(1, 24))
@@ -184,20 +210,33 @@ def generate_production_order_pdf(order: dict) -> bytes:
     buffer.seek(0)
     return buffer.read()
 
+@router.get("/{order_id}/pdf")
+def gerar_pdf_ordem_producao(
+    order_id: int,
+    db: Session = Depends(get_db)
+):
+    order = (
+        db.query(models.ProductionOrder)
+        .options(
+            joinedload(models.ProductionOrder.product)
+        )
+        .filter(models.ProductionOrder.id == order_id)
+        .first()
+    )
 
-@router.post("/pdf")
-def gerar_pdf_ordem_producao(op: dict):
-    pdf_bytes = generate_production_order_pdf(op)
+    if not order:
+        raise HTTPException(status_code=404, detail="Ordem não encontrada")
 
-    filename = f"ordem_producao_{op['code']}.pdf"
+    pdf_bytes = generate_production_order_pdf(order)
 
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
+            "Content-Disposition": f'inline; filename="ordem_producao_{order.code}.pdf"'
         }
     )
+
 
 def generate_order_code(db: Session, sales_order_number: str, product_id: int) -> str:
     prefix = f"PO-{sales_order_number}-{product_id}-"
@@ -381,6 +420,149 @@ def create_orders_from_sales_order(
 
     return created_orders_response
 
+@router.post(
+    "/from-sales-order/{sales_order_id}/product/{product_id}",
+    response_model=list[schemas.ProductionOrderResponse],
+    dependencies=[Depends(allow_roles("manager", "admin"))]
+)
+def create_orders_from_sales_order_by_product(
+    sales_order_id: int,
+    product_id: int,
+    db: Session = Depends(get_db)
+):
+    sales_order = db.query(models.SalesOrder).filter_by(id=sales_order_id).first()
+    if not sales_order:
+        raise HTTPException(status_code=404, detail="Sales order not found")
+
+    # 🔒 garante que o produto pertence ao pedido de venda
+    sales_item = next(
+        (item for item in sales_order.items if item.product_id == product_id),
+        None
+    )
+    if not sales_item:
+        raise HTTPException(
+            status_code=400,
+            detail="Product does not belong to this sales order"
+        )
+
+    created_orders_response: list[dict] = []
+    po_map: dict[int, models.ProductionOrder] = {}
+
+    # ---------- helper para gerar código único ----------
+    def generate_order_code(order_number: str, product_id: int) -> str:
+        prefix = f"PO-{order_number}-{product_id}-"
+        existing_codes = db.query(models.ProductionOrder.code).filter(
+            models.ProductionOrder.code.like(f"{prefix}%")
+        ).all()
+
+        seq_numbers = []
+        for (code,) in existing_codes:
+            try:
+                seq_numbers.append(int(code.split("-")[-1]))
+            except Exception:
+                pass
+
+        next_seq = max(seq_numbers) + 1 if seq_numbers else 1
+        return f"{prefix}{next_seq}"
+
+    # ---------- função recursiva ----------
+    def create_order_recursive(product_id: int, quantity: float, visited: set):
+        if product_id in visited:
+            return None
+        visited = visited | {product_id}
+
+        product = db.query(models.Product).filter_by(id=product_id).first()
+        if not product:
+            return None
+
+        if product_id in po_map:
+            return po_map[product_id]
+
+        po_code = generate_order_code(sales_order.order_number, product_id)
+
+        po = models.ProductionOrder(
+            code=po_code,
+            product_id=product_id,
+            planned_quantity=quantity,
+            sales_order_id=sales_order_id,
+            status=models.ProductionOrderStatus.planned,
+            created_at=datetime.utcnow(),
+            notes=f"Auto-generated from Sales Order {sales_order.order_number}"
+        )
+
+        db.add(po)
+        db.flush()
+
+        po_map[product_id] = po
+
+        bom_children = db.query(models.ProductBOM).filter_by(
+            parent_id=product_id
+        ).all()
+
+        # cria filhos
+        for bom in bom_children:
+            create_order_recursive(
+                product_id=bom.child_id,
+                quantity=quantity * bom.quantity,
+                visited=visited
+            )
+
+        # ---------- serialização ----------
+        bom_children_serialized = []
+        for bom in bom_children:
+            child_po = po_map.get(bom.child_id)
+            bom_children_serialized.append({
+                "id": bom.id,
+                "parent_id": bom.parent_id,
+                "child_id": bom.child_id,
+                "quantity": bom.quantity,
+                "effective_quantity": bom.quantity * quantity,
+                "production_order_id": child_po.id if child_po else None,
+                "production_order_code": child_po.code if child_po else None
+            })
+
+        product_serialized = {
+            "id": product.id,
+            "name": product.name,
+            "code": product.code,
+            "description": product.description,
+            "unit_cost": product.unit_cost,
+            "unit_price": product.unit_price,
+            "net_weight": product.net_weight,
+            "gross_weight": product.gross_weight,
+            "bom_children": bom_children_serialized,
+            "bom_parent": []
+        }
+
+        po_dict = {
+            "id": po.id,
+            "code": po.code,
+            "product_id": po.product_id,
+            "planned_quantity": po.planned_quantity,
+            "status": po.status,
+            "notes": po.notes,
+            "created_at": po.created_at,
+            "start_date": po.start_date,
+            "end_date": po.end_date,
+            "product": product_serialized,
+            "used_materials": []
+        }
+
+        created_orders_response.append(po_dict)
+
+        return po
+
+    # 🚀 cria OP apenas do produto solicitado
+    create_order_recursive(
+        product_id=sales_item.product_id,
+        quantity=sales_item.quantity,
+        visited=set()
+    )
+
+    db.commit()
+    return created_orders_response
+
+
 def serialize_production_order(po: models.ProductionOrder, db: Session):
     product = po.product
 
@@ -469,15 +651,43 @@ def get_order(order_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Production order not found")
     return serialize_production_order(po, db)
 
+from datetime import date
 
-@router.put("/{order_id}", response_model=schemas.ProductionOrderResponse, dependencies=[Depends(allow_roles("manager","admin"))])
-def update_order(order_id: int, order_update: schemas.ProductionOrderUpdate, db: Session = Depends(get_db)):
-    order = db.query(models.ProductionOrder).filter(models.ProductionOrder.id == order_id).first()
+@router.put(
+    "/{order_id}",
+    response_model=schemas.ProductionOrderResponse,
+    dependencies=[Depends(allow_roles("manager", "admin"))]
+)
+def update_order(
+    order_id: int,
+    order_update: schemas.ProductionOrderUpdate,
+    db: Session = Depends(get_db)
+):
+    order = (
+        db.query(models.ProductionOrder)
+        .filter(models.ProductionOrder.id == order_id)
+        .first()
+    )
+
     if not order:
         raise HTTPException(status_code=404, detail="Production order not found")
 
-    for key, value in order_update.dict(exclude_unset=True).items():
+    data = order_update.dict(exclude_unset=True)
+
+    for key, value in data.items():
         setattr(order, key, value)
+
+    if "start_date" not in data and order.start_date is None:
+        order.start_date = date.today()
+
+    if order.status == schemas.ProductionOrderStatus.planned:
+        has_movement = (
+            (order.produced_quantity is not None and order.produced_quantity > 0)
+            or order.start_date is not None
+        )
+
+        if has_movement:
+            order.status = schemas.ProductionOrderStatus.in_production
 
     db.commit()
     db.refresh(order)

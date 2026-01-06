@@ -32,16 +32,23 @@ interface Product {
 interface SalesOrderItemForm {
   product_id: number | null;
   quantity: number;
-  delivery_date?: string | null;
+  delivery_date: string | null;
 }
 
 interface SalesOrderForm {
   order_number: string;
   customer: string;
-  notes?: string | null;
-  delivery_date?: string | null;
+  notes: string;
+  delivery_date: string | null;
   items: SalesOrderItemForm[];
 }
+
+/* ================= UTILS ================= */
+
+const normalizeDate = (date?: string | null): string | null => {
+  if (!date) return null;
+  return date.split("T")[0]; // YYYY-MM-DD
+};
 
 /* ================= COMPONENT ================= */
 
@@ -56,7 +63,7 @@ const SalesOrderEditPage = () => {
   /* ========= LOAD DATA ========= */
 
   useEffect(() => {
-    const loadAll = async () => {
+    const loadData = async () => {
       try {
         const [productsRes, orderRes] = await Promise.all([
           api.get("/products/"),
@@ -65,19 +72,20 @@ const SalesOrderEditPage = () => {
 
         const order = orderRes.data;
 
-        // 🔥 NORMALIZAÇÃO CRÍTICA
         const normalized: SalesOrderForm = {
           order_number: order.order_number,
           customer: order.customer,
           notes: order.notes ?? "",
-          delivery_date: order.delivery_date ?? null,
+          delivery_date: normalizeDate(order.delivery_date),
           items: order.items.map((item: any) => ({
             product_id:
               typeof item.product_id === "object"
                 ? item.product_id.id
                 : item.product_id,
             quantity: Number(item.quantity),
-            delivery_date: item.delivery_date ?? null,
+            delivery_date: normalizeDate(
+              item.delivery_date ?? order.delivery_date
+            ),
           })),
         };
 
@@ -85,15 +93,15 @@ const SalesOrderEditPage = () => {
         setFormData(normalized);
       } catch (error) {
         console.error(error);
-        toast.error("Erro ao carregar pedido");
+        toast.error("Erro ao carregar pedido de venda");
         navigate("/sales-order");
       }
     };
 
-    loadAll();
+    loadData();
   }, [id, navigate]);
 
-  /* ========= ITEMS ========= */
+  /* ========= ITEM HANDLERS ========= */
 
   const addItem = () => {
     if (!formData) return;
@@ -102,7 +110,11 @@ const SalesOrderEditPage = () => {
       ...formData,
       items: [
         ...formData.items,
-        { product_id: null, quantity: 1, delivery_date: null },
+        {
+          product_id: null,
+          quantity: 1,
+          delivery_date: formData.delivery_date,
+        },
       ],
     });
   };
@@ -135,8 +147,8 @@ const SalesOrderEditPage = () => {
     e.preventDefault();
     if (!formData) return;
 
-    if (formData.items.some((i) => !i.product_id)) {
-      toast.error("Selecione um produto para todos os itens");
+    if (formData.items.some((item) => !item.product_id)) {
+      toast.error("Todos os itens devem ter um produto selecionado");
       return;
     }
 
@@ -147,11 +159,11 @@ const SalesOrderEditPage = () => {
         order_number: formData.order_number,
         customer: formData.customer,
         notes: formData.notes || null,
-        delivery_date: formData.delivery_date || null,
+        delivery_date: formData.delivery_date,
         items: formData.items.map((item) => ({
           product_id: Number(item.product_id),
           quantity: Number(item.quantity),
-          delivery_date: item.delivery_date || null,
+          delivery_date: item.delivery_date,
         })),
       };
 
@@ -214,7 +226,7 @@ const SalesOrderEditPage = () => {
             <div>
               <Label>Observações</Label>
               <Input
-                value={formData.notes || ""}
+                value={formData.notes}
                 onChange={(e) =>
                   setFormData({
                     ...formData,
@@ -255,7 +267,7 @@ const SalesOrderEditPage = () => {
               {formData.items.map((item, index) => (
                 <div
                   key={index}
-                  className="grid grid-cols-4 gap-4 items-end border p-4 rounded-md"
+                  className="grid grid-cols-5 gap-4 items-end border p-4 rounded-md"
                 >
                   <div className="col-span-2">
                     <Label>Produto</Label>
@@ -300,6 +312,21 @@ const SalesOrderEditPage = () => {
                           index,
                           "quantity",
                           Number(e.target.value)
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Entrega</Label>
+                    <Input
+                      type="date"
+                      value={item.delivery_date || ""}
+                      onChange={(e) =>
+                        updateItem(
+                          index,
+                          "delivery_date",
+                          e.target.value || null
                         )
                       }
                     />

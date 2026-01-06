@@ -17,6 +17,8 @@ import Upload from "./pages/upload/Upload";
 import ProductionOrder from "../src/pages/productionOrders/ProductionOrderPage";
 import ProductionOrderCreatePage from "./pages/productionOrders/ProductionOrderCreatePage";
 import ProductionOrderEditPage from "./pages/productionOrders/ProductionOrderEditPage";
+import ProductionOrderCreateFromSaleOrder from "./pages/productionOrders/ProductionOrderCreateFromSaleOrder";
+import ProductionOrderPdfView from "./pages/productionOrders/ProductionOrderPdfView";
 
 import Orders from "./pages/Orders";
 
@@ -65,7 +67,9 @@ const App = () => (
             <Route path="/production-order" element={<ProductionOrder />} />
             <Route path="/production-order/create" element={<ProductionOrderCreatePage />} />
             <Route path="/production-order/edit/:id" element={<ProductionOrderEditPage />} />
-
+            <Route path="/production-order/create-from-sale-order" element={<ProductionOrderCreateFromSaleOrder />} />  
+            <Route path="/production-order/pdf/:id" element={<ProductionOrderPdfView />}
+/>
             <Route path="/upload" element={<Upload />} />
 
             <Route path="/products" element={<ProductsPage />} />

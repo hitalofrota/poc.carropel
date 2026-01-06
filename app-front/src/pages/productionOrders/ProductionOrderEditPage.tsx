@@ -1,17 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Save,
   ArrowLeft,
   Calendar,
   CheckCircle,
-  XCircle
+  XCircle,
+  Package
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -25,12 +32,24 @@ import { toast } from "sonner";
 import {
   ProductionOrderUpdateData,
   ProductionOrderResponse
-} from '../../types/production-order';
-import { productionOrderService } from '../../services/productionOrderService';
-import LoadingButton from '../../components/LoadingButton';
+} from "../../types/production-order";
+import { productionOrderService } from "../../services/productionOrderService";
+import LoadingButton from "../../components/LoadingButton";
 
-const normalizeDate = (value?: string | null) =>
-  value ? value.split('T')[0] : '';
+/* =========================
+   Helpers
+========================= */
+
+const toDateInputValue = (date?: string | null) => {
+  if (!date) return "";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+};
+
+/* =========================
+   Component
+========================= */
 
 const ProductionOrderEditPage: React.FC = () => {
   const navigate = useNavigate();
@@ -40,19 +59,28 @@ const ProductionOrderEditPage: React.FC = () => {
   const [loadingOrder, setLoadingOrder] = useState(true);
 
   const [formData, setFormData] = useState<ProductionOrderUpdateData>({
-    name: '',
-    code: '',
-    quantity: 0,
-    start_date: '',
-    end_date: '',
-    status: 'pending'
+    planned_quantity: 0,
+    produced_quantity: null,
+    status: "planned",
+    notes: null,
+    start_date: null,
+    end_date: null
   });
+
+  const [product, setProduct] =
+    useState<ProductionOrderResponse["product"] | null>(null);
+
+  const [orderCode, setOrderCode] = useState<string>("");
+
+  /* =========================
+     Load Production Order
+  ========================= */
 
   useEffect(() => {
     const loadProductionOrder = async () => {
       if (!id) {
-        toast.error('ID da ordem de produção não informado');
-        navigate('/production-order');
+        toast.error("ID da ordem de produção não informado");
+        navigate("/production-order");
         return;
       }
 
@@ -60,22 +88,24 @@ const ProductionOrderEditPage: React.FC = () => {
         setLoadingOrder(true);
 
         const orderId = Number(id);
-        const order: ProductionOrderResponse =
-          await productionOrderService.getProductionOrder(orderId);
+        const order = await productionOrderService.getProductionOrder(orderId);
 
         setFormData({
-          name: order.name ?? '',
-          code: order.code ?? '',
-          quantity: order.quantity ?? 0,
-          start_date: normalizeDate(order.start_date),
-          end_date: normalizeDate(order.end_date),
-          status: order.status ?? 'pending',
+          planned_quantity: order.planned_quantity ?? 0,
+          produced_quantity: order.produced_quantity ?? null,
+          status: order.status ?? "planned",
+          notes: order.notes ?? null,
+          start_date: order.start_date ?? null,
+          end_date: order.end_date ?? null
         });
 
+        setProduct(order.product ?? null);
+        setOrderCode(order.code);
+
       } catch (error) {
-        console.error('Erro ao carregar ordem de produção:', error);
-        toast.error('Erro ao carregar dados da ordem de produção');
-        navigate('/production-order');
+        console.error(error);
+        toast.error("Erro ao carregar dados da ordem de produção");
+        navigate("/production-order");
       } finally {
         setLoadingOrder(false);
       }
@@ -84,32 +114,53 @@ const ProductionOrderEditPage: React.FC = () => {
     loadProductionOrder();
   }, [id, navigate]);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  /* =========================
+     Handlers
+  ========================= */
+
+  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
 
     setFormData(prev => ({
       ...prev,
-      [name]:
-        name === 'quantity'
-          ? Number(value) || 0
-          : value,
+      [name]: value === "" ? null : Number(value)
     }));
   };
 
-  const handleSelectChange = (name: string, value: string) => {
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+
     setFormData(prev => ({
       ...prev,
-      [name]: value,
+      [name]: value === "" ? null : value
     }));
   };
+
+  const handleStatusChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      status: value
+    }));
+  };
+
+  /* =========================
+     Submit
+  ========================= */
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!id) {
-      toast.error('ID da ordem de produção não informado');
+      toast.error("ID da ordem de produção não informado");
+      return;
+    }
+
+    if (
+      formData.start_date &&
+      formData.end_date &&
+      formData.end_date < formData.start_date
+    ) {
+      toast.error("A data de término não pode ser anterior à data de início");
       return;
     }
 
@@ -118,83 +169,116 @@ const ProductionOrderEditPage: React.FC = () => {
     try {
       const orderId = Number(id);
 
-      await productionOrderService.updateProductionOrder(
-        orderId,
-        {
-          ...formData,
-          end_date: formData.end_date || null, // backend-friendly
-        }
-      );
+      await productionOrderService.updateProductionOrder(orderId, {
+        planned_quantity: formData.planned_quantity,
+        produced_quantity: formData.produced_quantity,
+        status: formData.status,
+        notes: formData.notes,
+        start_date: formData.start_date,
+        end_date: formData.end_date
+      });
 
-      toast.success('Ordem de produção atualizada com sucesso!', {
-        description: `A ordem ${formData.name} foi atualizada.`,
+      toast.success("Ordem de produção atualizada com sucesso!", {
         icon: <CheckCircle className="w-4 h-4" />
       });
 
-      navigate('/production-order');
+      navigate("/production-order");
 
     } catch (err: any) {
-      console.error('Erro ao atualizar ordem de produção:', err);
-
       const detail = err?.response?.data?.detail;
 
-      if (typeof detail === 'string') {
-        toast.error('Erro ao atualizar ordem de produção', {
-          description: detail,
-          icon: <XCircle className="w-4 h-4" />
-        });
-      } else if (Array.isArray(detail)) {
-        const messages = detail.map((e: any) => e.msg).join(', ');
-        toast.error('Erros de validação', {
-          description: messages,
-          icon: <XCircle className="w-4 h-4" />
-        });
-      } else {
-        toast.error('Erro de conexão', {
-          description: 'Não foi possível conectar com o servidor.',
-          icon: <XCircle className="w-4 h-4" />
-        });
-      }
+      toast.error("Erro ao atualizar ordem de produção", {
+        description: typeof detail === "string" ? detail : "Erro inesperado",
+        icon: <XCircle className="w-4 h-4" />
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCancel = () => {
-    navigate('/production-order');
-  };
+  /* =========================
+     Loading
+  ========================= */
 
   if (loadingOrder) {
     return (
-      <div className="container mx-auto p-8">
-        <div className="flex items-center justify-center h-64">
-          <Calendar className="h-8 w-8 animate-spin mr-2" />
-          <span className="text-muted-foreground">
-            Carregando ordem de produção...
-          </span>
-        </div>
+      <div className="container mx-auto p-8 flex items-center justify-center h-64">
+        <Calendar className="h-8 w-8 animate-spin mr-2" />
+        <span className="text-muted-foreground">
+          Carregando ordem de produção...
+        </span>
       </div>
     );
   }
 
+  /* =========================
+     Render
+  ========================= */
+
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={handleCancel}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <h1 className="text-2xl font-bold">
-            Editar Ordem de Produção
-          </h1>
-        </div>
 
-        <Badge variant="secondary">
-          <Calendar className="w-3 h-3 mr-1" />
-          ID: {id}
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate("/production-order")}
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+
+        <h1 className="text-2xl font-bold">
+          Editar Ordem de Produção
+        </h1>
+
+        <Badge variant="secondary" className="ml-auto">
+          {orderCode || `ID: ${id}`}
         </Badge>
       </div>
 
+      {/* Produto */}
+      {product && (
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-2">
+            <Package className="w-5 h-5" />
+            <div>
+              <CardTitle>Produto</CardTitle>
+              <CardDescription>
+                Produto vinculado à ordem de produção
+              </CardDescription>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <Label>Nome</Label>
+                <Input value={product.name} disabled />
+              </div>
+
+              <div>
+                <Label>Código</Label>
+                <Input value={product.code} disabled />
+              </div>
+
+              <div>
+                <Label>ID do Produto</Label>
+                <Input value={product.id} disabled />
+              </div>
+
+              {product.description && (
+                <div className="md:col-span-3">
+                  <Label>Descrição</Label>
+                  <Input value={product.description} disabled />
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Ordem */}
       <Card>
         <CardHeader>
           <CardTitle>Informações da Ordem</CardTitle>
@@ -205,38 +289,29 @@ const ProductionOrderEditPage: React.FC = () => {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <Label>Nome *</Label>
-                <Input
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
 
+            {/* Quantidades + Status */}
+            <div className="grid md:grid-cols-3 gap-6">
               <div>
-                <Label>Código *</Label>
-                <Input
-                  name="code"
-                  value={formData.code}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-4 gap-6">
-              <div>
-                <Label>Quantidade *</Label>
+                <Label>Quantidade Planejada *</Label>
                 <Input
                   type="number"
-                  name="quantity"
                   min={1}
-                  value={formData.quantity}
-                  onChange={handleChange}
+                  name="planned_quantity"
+                  value={formData.planned_quantity ?? ""}
+                  onChange={handleNumberChange}
                   required
+                />
+              </div>
+
+              <div>
+                <Label>Quantidade Produzida</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  name="produced_quantity"
+                  value={formData.produced_quantity ?? ""}
+                  onChange={handleNumberChange}
                 />
               </div>
 
@@ -244,30 +319,30 @@ const ProductionOrderEditPage: React.FC = () => {
                 <Label>Status</Label>
                 <Select
                   value={formData.status}
-                  onValueChange={(v) =>
-                    handleSelectChange('status', v)
-                  }
+                  onValueChange={handleStatusChange}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pending">Pendente</SelectItem>
-                    <SelectItem value="in_progress">Em andamento</SelectItem>
-                    <SelectItem value="completed">Concluída</SelectItem>
+                    <SelectItem value="planned">Planejada</SelectItem>
+                    <SelectItem value="in_production">Em Produção</SelectItem>
+                    <SelectItem value="finished">Finalizada</SelectItem>
                     <SelectItem value="cancelled">Cancelada</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
+            {/* Datas */}
+            <div className="grid md:grid-cols-3 gap-6">
               <div>
-                <Label>Data de Início *</Label>
+                <Label>Data de Início</Label>
                 <Input
                   type="date"
                   name="start_date"
-                  value={formData.start_date}
-                  onChange={handleChange}
-                  required
+                  value={toDateInputValue(formData.start_date)}
+                  onChange={handleDateChange}
                 />
               </div>
 
@@ -276,17 +351,18 @@ const ProductionOrderEditPage: React.FC = () => {
                 <Input
                   type="date"
                   name="end_date"
-                  value={formData.end_date}
-                  onChange={handleChange}
+                  value={toDateInputValue(formData.end_date)}
+                  onChange={handleDateChange}
                 />
               </div>
             </div>
 
+            {/* Actions */}
             <div className="flex justify-end gap-3 pt-4 border-t">
               <Button
                 type="button"
                 variant="outline"
-                onClick={handleCancel}
+                onClick={() => navigate("/production-order")}
               >
                 Cancelar
               </Button>
@@ -296,6 +372,7 @@ const ProductionOrderEditPage: React.FC = () => {
                 Salvar Alterações
               </LoadingButton>
             </div>
+
           </form>
         </CardContent>
       </Card>

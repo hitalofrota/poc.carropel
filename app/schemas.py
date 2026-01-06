@@ -1,7 +1,8 @@
 # app/schemas.py
 
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Optional
+
 from pydantic import BaseModel, Field, EmailStr, field_validator
 from enum import Enum
 from app.models import UserRole
@@ -58,7 +59,13 @@ class ProductionOrderStatus(str, Enum):
     planned = "planned"
     in_production = "in_production"
     finished = "finished"
-    canceled = "canceled"
+    cancelled = "cancelled"
+
+class SalesOrderStatus(str, Enum):
+    planned = "planned"
+    in_production = "in_production"
+    finished = "finished"
+    cancelled = "cancelled"
 
 
 # ========================
@@ -325,6 +332,8 @@ class ProductionOrderUpdate(BaseModel):
     produced_quantity: Optional[float] = None
     status: Optional[ProductionOrderStatus] = None
     notes: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
 
 
 class ProductionOrderResponse(ProductionOrderBase):
@@ -478,6 +487,7 @@ class SalesOrderBase(BaseModel):
     order_number: str
     customer: str
     notes: Optional[str] = None
+    status: Optional[SalesOrderStatus] = SalesOrderStatus.planned
     delivery_date: Optional[datetime] = None  
 
 

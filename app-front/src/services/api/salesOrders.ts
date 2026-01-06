@@ -39,3 +39,12 @@ export const updateSalesOrder = async (
   const { data } = await api.put(`/sales-orders/${id}`, payload);
   return data;
 };
+
+export const getOpenSalesOrders = async (): Promise<SalesOrder[]> => {
+  const { data } = await api.get("/sales-orders/", {
+    params: {
+      status__in: ["planned", "in_production"]
+    }
+  });
+  return data;
+};
