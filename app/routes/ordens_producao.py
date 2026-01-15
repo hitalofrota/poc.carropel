@@ -5,10 +5,10 @@ from app.database import get_db
 from app.auth import get_current_user, allow_roles
 from datetime import datetime, date
 import re
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-)
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+
+from app.services.generate_order import service_production_order_pdf   
+
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -227,7 +227,7 @@ def gerar_pdf_ordem_producao(
     if not order:
         raise HTTPException(status_code=404, detail="Ordem não encontrada")
 
-    pdf_bytes = generate_production_order_pdf(order)
+    pdf_bytes = service_production_order_pdf(order)
 
     return Response(
         content=pdf_bytes,
@@ -603,6 +603,7 @@ def serialize_production_order(po: models.ProductionOrder, db: Session):
             "id": bom.id,
             "parent_id": bom.parent_id,
             "child_id": bom.child_id,
+            "child_name": bom.child.name if bom.child else f"ID {bom.child_id}",
             "quantity": bom.quantity,
             "level_code": getattr(bom, "level_code", None),
             "order": getattr(bom, "order", None),
